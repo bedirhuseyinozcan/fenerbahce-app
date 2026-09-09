@@ -1,7 +1,6 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { Link, Tabs } from "expo-router";
+import { Tabs } from "expo-router";
 import React from "react";
-import { Pressable } from "react-native";
 
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
 import { useColorScheme } from "@/components/useColorScheme";
@@ -11,16 +10,22 @@ function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>["name"];
   color: string;
 }) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
+  return <FontAwesome size={26} style={{ marginBottom: -3 }} {...props} />;
 }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? "light";
+  const theme = Colors[colorScheme];
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+        tabBarActiveTintColor: theme.tint,
+        tabBarInactiveTintColor: theme.tabIconDefault,
+        tabBarStyle: {
+          backgroundColor: theme.background,
+          borderTopColor: theme.placeholder,
+        },
         headerShown: useClientOnlyValue(false, true),
       }}
     >
@@ -30,27 +35,40 @@ export default function TabLayout() {
           title: "Ana Sayfa",
           headerShown: false,
           tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
-          headerRight: () => (
-            <Link href="/modal" asChild>
-              <Pressable>
-                {({ pressed }) => (
-                  <FontAwesome
-                    name="info-circle"
-                    size={25}
-                    color={Colors[colorScheme ?? "light"].text}
-                    style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
-                  />
-                )}
-              </Pressable>
-            </Link>
+        }}
+      />
+      <Tabs.Screen
+        name="fikstur"
+        options={{
+          title: "Fikstür",
+          headerTitle: "Maç Takvimi",
+          headerStyle: { backgroundColor: Colors.brand.navy },
+          headerTintColor: Colors.brand.yellow,
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon name="calendar" color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="two"
+        name="fenerium"
         options={{
-          title: "Tab Two",
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+          title: "Fenerium",
+          headerTitle: "Fenerium Mağaza",
+          headerStyle: { backgroundColor: Colors.brand.navy },
+          headerTintColor: Colors.brand.yellow,
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon name="shopping-bag" color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="daha"
+        options={{
+          title: "Daha Fazla",
+          headerTitle: "Menü",
+          headerStyle: { backgroundColor: Colors.brand.navy },
+          headerTintColor: Colors.brand.yellow,
+          tabBarIcon: ({ color }) => <TabBarIcon name="bars" color={color} />,
         }}
       />
     </Tabs>
