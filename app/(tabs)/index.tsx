@@ -1,11 +1,16 @@
+import CloudinaryImage from "@/components/CloudinaryImage";
 import MatchCard from "@/components/MatchCard";
 import Colors from "@/constants/Colors";
 import { fetchFixtures } from "@/services/fixtureService";
-import { MatchData } from "@/types";
+import { fetchNews } from "@/services/newsService";
+import { fetchSuperLigStandings } from "@/services/standingsService";
+import { MatchData, NewsData, TeamStanding } from "@/types";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,16 +24,40 @@ export default function TabOneScreen() {
   const colorScheme = useColorScheme() ?? "light";
   const theme = Colors[colorScheme];
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const [upcomingMatches, setUpcomingMatches] = useState<MatchData[]>([]);
+  const [nextMatch, setNextMatch] = useState<MatchData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [news, setNews] = useState<NewsData[]>([]);
+  const [newsLoading, setNewsLoading] = useState(true);
+
+  const [standings, setStandings] = useState<TeamStanding[]>([]);
 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      const data = await fetchFixtures();
-      setUpcomingMatches(data.slice(0, 4));
+      setNewsLoading(true);
+
+      const [fixturesData, newsData, standingsData] = await Promise.all([
+        fetchFixtures(),
+        fetchNews(),
+        fetchSuperLigStandings(),
+      ]);
+
+      setUpcomingMatches(fixturesData.slice(0, 4));
+
+      const futureMatch = fixturesData.find(
+        (m) => m.homeScore === null && m.awayScore === null,
+      );
+      setNextMatch(futureMatch || null);
+
+      setNews(newsData.slice(0, 5));
+      setStandings(standingsData.slice(0, 5));
+
       setLoading(false);
+      setNewsLoading(false);
     };
 
     loadData();
@@ -39,29 +68,91 @@ export default function TabOneScreen() {
       style={[styles.container, { backgroundColor: theme.background }]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={[styles.heroContainer, { marginTop: insets.top }]}>
-        <Image
-          source={{
-            uri: "https://media.fenerbahce.org/getmedia/835dcbca-04a4-4a24-ad8b-4a6c8eecbfbe/genelkurul.jpg",
-          }}
-          style={styles.heroImage}
-        />
-        <View style={styles.heroOverlay}>
-          <Text style={styles.heroTitle}>
-            FENERBAHÇE SPOR KULÜBÜ OLAĞAN GENEL KURUL TOPLANTI DUYURUSU
-          </Text>
-          <TouchableOpacity style={styles.heroButton}>
-            <Text style={styles.heroButtonText}>Devamı</Text>
-          </TouchableOpacity>
+      {nextMatch ? (
+        <View style={[styles.heroContainer, { marginTop: insets.top }]}>
+          <Image
+            source={{
+              uri: "https://media.fenerbahce.org/getmedia/5c3702c2-d352-45e3-b09e-7341857c50be/stad.jpg",
+            }}
+            style={styles.heroImage}
+          />
+          <View
+            style={[
+              StyleSheet.absoluteFillObject,
+              { backgroundColor: "rgba(7, 33, 70, 0.85)" },
+            ]}
+          />
+
+          <View style={styles.heroContent}>
+            <View style={styles.heroBadge}>
+              <Text style={styles.heroBadgeText}>
+                {nextMatch.competition}{" "}
+                {nextMatch.round ? `• ${nextMatch.round}` : ""}
+              </Text>
+            </View>
+
+            <View style={styles.heroMatchRow}>
+              <View style={styles.heroTeam}>
+                <CloudinaryImage
+                  publicId={nextMatch.homeLogo || "fener.png"}
+                  style={styles.heroLogo}
+                  contentFit="contain"
+                />
+                <Text style={styles.heroTeamName} numberOfLines={1}>
+                  {nextMatch.homeTeam}
+                </Text>
+              </View>
+
+              <View style={styles.heroScoreBoard}>
+                <Text style={styles.heroDate}>{nextMatch.date}</Text>
+                <Text style={styles.heroTime}>{nextMatch.time}</Text>
+              </View>
+
+              <View style={styles.heroTeam}>
+                <CloudinaryImage
+                  publicId={nextMatch.awayLogo || "fener.png"}
+                  style={styles.heroLogo}
+                  contentFit="contain"
+                />
+                <Text style={styles.heroTeamName} numberOfLines={1}>
+                  {nextMatch.awayTeam}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.heroActionBtn}>
+              <Text style={styles.heroActionBtnText}>Maç Merkezine Git</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      ) : (
+        <View
+          style={[
+            styles.heroContainer,
+            {
+              marginTop: insets.top,
+              backgroundColor: Colors.brand.navy,
+              justifyContent: "center",
+              alignItems: "center",
+            },
+          ]}
+        >
+          {loading ? (
+            <ActivityIndicator color={Colors.brand.yellow} />
+          ) : (
+            <Text style={{ color: Colors.brand.white }}>
+              Sıradaki maç bilgisi bekleniyor...
+            </Text>
+          )}
+        </View>
+      )}
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
             MAÇ TAKVİMİ
           </Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push("/fikstur")}>
             <Text style={styles.sectionLink}>+ Tüm Maçlar</Text>
           </TouchableOpacity>
         </View>
@@ -107,97 +198,234 @@ export default function TabOneScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            SÜPER LİG PUAN DURUMU
+          </Text>
+          <TouchableOpacity onPress={() => router.push("/puan-durumu")}>
+            <Text style={styles.sectionLink}>+ Tüm Liste</Text>
+          </TouchableOpacity>
+        </View>
+        <View
+          style={[
+            styles.standingsContainer,
+            { backgroundColor: theme.cardBackground },
+          ]}
+        >
+          <View style={styles.standingsHeaderRow}>
+            <Text style={[styles.standingsHeaderText, { flex: 0.5 }]}>#</Text>
+            <Text style={[styles.standingsHeaderText, { flex: 3 }]}>TAKIM</Text>
+            <Text
+              style={[
+                styles.standingsHeaderText,
+                { flex: 1, textAlign: "center" },
+              ]}
+            >
+              O
+            </Text>
+            <Text
+              style={[
+                styles.standingsHeaderText,
+                { flex: 1, textAlign: "center" },
+              ]}
+            >
+              AV
+            </Text>
+            <Text
+              style={[
+                styles.standingsHeaderText,
+                { flex: 1, textAlign: "center" },
+              ]}
+            >
+              P
+            </Text>
+          </View>
+          {loading ? (
+            <View style={{ padding: 20, alignItems: "center" }}>
+              <ActivityIndicator color={Colors.brand.navy} />
+            </View>
+          ) : (
+            standings.map((team) => (
+              <View
+                key={team.teamId}
+                style={[
+                  styles.standingsRow,
+                  team.teamName.includes("Fenerbahçe") && {
+                    backgroundColor: "rgba(255, 237, 0, 0.15)",
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.standingsText,
+                    { flex: 0.5, fontWeight: "bold", color: theme.text },
+                  ]}
+                >
+                  {team.rank}
+                </Text>
+                <View
+                  style={{
+                    flex: 3,
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                >
+                  <CloudinaryImage
+                    publicId={team.badge}
+                    style={{ width: 20, height: 20, marginRight: 8 }}
+                    contentFit="contain"
+                  />
+                  <Text
+                    style={[
+                      styles.standingsText,
+                      {
+                        color: theme.text,
+                        fontWeight: team.teamName.includes("Fenerbahçe")
+                          ? "bold"
+                          : "normal",
+                        fontSize: 13,
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {team.teamName}
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.standingsText,
+                    {
+                      flex: 1,
+                      textAlign: "center",
+                      color: theme.secondaryText,
+                    },
+                  ]}
+                >
+                  {team.played}
+                </Text>
+                <Text
+                  style={[
+                    styles.standingsText,
+                    {
+                      flex: 1,
+                      textAlign: "center",
+                      color: theme.secondaryText,
+                    },
+                  ]}
+                >
+                  {team.goalDifference > 0
+                    ? `+${team.goalDifference}`
+                    : team.goalDifference}
+                </Text>
+                <Text
+                  style={[
+                    styles.standingsText,
+                    {
+                      flex: 1,
+                      textAlign: "center",
+                      fontWeight: "bold",
+                      color: theme.text,
+                    },
+                  ]}
+                >
+                  {team.points}
+                </Text>
+              </View>
+            ))
+          )}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
             HABERLER
           </Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push("/haberler")}>
             <Text style={styles.sectionLink}>+ Tüm Haberler</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.newsList}>
-          <TouchableOpacity
-            style={[
-              styles.featuredNewsCard,
-              { backgroundColor: theme.cardBackground },
-            ]}
-          >
-            <Image
-              source={{
-                uri: "https://media.fenerbahce.org/getmedia/5c3702c2-d352-45e3-b09e-7341857c50be/stad.jpg",
-              }}
-              style={styles.featuredNewsImage}
-            />
-            <View style={styles.featuredNewsContent}>
-              <View style={styles.newsTag}>
-                <Text style={styles.newsTagText}>KULÜP</Text>
-              </View>
-              <Text
-                style={[styles.featuredNewsTitle, { color: theme.text }]}
-                numberOfLines={3}
-              >
-                Fenerbahçe Şükrü Saracoğlu Spor Kompleksi'nde dev kapasite
-                artışı başlıyor
-              </Text>
-              <Text style={styles.newsDate}>09 Eylül 2026 • 14:01</Text>
-            </View>
-          </TouchableOpacity>
-
-          <View style={styles.newsGridRow}>
-            <TouchableOpacity
-              style={[
-                styles.smallNewsCard,
-                { backgroundColor: theme.cardBackground },
-              ]}
-            >
-              <View
-                style={[
-                  styles.smallNewsImagePlaceholder,
-                  { backgroundColor: Colors.brand.navy },
-                ]}
-              />
-              <View style={styles.smallNewsContent}>
-                <Text
-                  style={[styles.newsTagText, { color: Colors.brand.navy }]}
-                >
-                  KULÜP
-                </Text>
-                <Text
-                  style={[styles.smallNewsTitle, { color: theme.text }]}
-                  numberOfLines={2}
-                >
-                  Kamuoyuna Duyuru
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.smallNewsCard,
-                { backgroundColor: theme.cardBackground },
-              ]}
-            >
-              <View
-                style={[
-                  styles.smallNewsImagePlaceholder,
-                  { backgroundColor: theme.placeholder },
-                ]}
-              />
-              <View style={styles.smallNewsContent}>
-                <Text
-                  style={[styles.newsTagText, { color: Colors.brand.navy }]}
-                >
-                  BASKETBOL
-                </Text>
-                <Text
-                  style={[styles.smallNewsTitle, { color: theme.text }]}
-                  numberOfLines={2}
-                >
-                  Eski Yöneticimiz ve sporcumuz Ferhan Baras'ı kaybettik
-                </Text>
-              </View>
-            </TouchableOpacity>
+        {newsLoading ? (
+          <View style={{ padding: 20, alignItems: "center" }}>
+            <ActivityIndicator size="small" color={Colors.brand.navy} />
           </View>
-        </View>
+        ) : news.length > 0 ? (
+          <View style={styles.newsList}>
+            {/* Featured News */}
+            <TouchableOpacity
+              style={[
+                styles.featuredNewsCard,
+                { backgroundColor: theme.cardBackground },
+              ]}
+              onPress={() => Linking.openURL(news[0].link)}
+            >
+              <Image
+                source={{ uri: news[0].image }}
+                style={styles.featuredNewsImage}
+              />
+              <View style={styles.featuredNewsContent}>
+                <View style={styles.newsTag}>
+                  <Text style={styles.newsTagText}>{news[0].category}</Text>
+                </View>
+                <Text
+                  style={[styles.featuredNewsTitle, { color: theme.text }]}
+                  numberOfLines={3}
+                >
+                  {news[0].title}
+                </Text>
+                <Text style={styles.newsDate}>{news[0].date}</Text>
+              </View>
+            </TouchableOpacity>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.newsGridRow}
+            >
+              {news.slice(1).map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.smallNewsCard,
+                    { backgroundColor: theme.cardBackground },
+                  ]}
+                  onPress={() => Linking.openURL(item.link)}
+                >
+                  {item.image ? (
+                    <Image
+                      source={{ uri: item.image }}
+                      style={styles.smallNewsImagePlaceholder}
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.smallNewsImagePlaceholder,
+                        { backgroundColor: theme.placeholder },
+                      ]}
+                    />
+                  )}
+                  <View style={styles.smallNewsContent}>
+                    <Text
+                      style={[styles.newsTagText, { color: Colors.brand.navy }]}
+                      numberOfLines={1}
+                    >
+                      {item.category}
+                    </Text>
+                    <Text
+                      style={[styles.smallNewsTitle, { color: theme.text }]}
+                      numberOfLines={3}
+                    >
+                      {item.title}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        ) : (
+          <Text style={{ color: theme.secondaryText, paddingHorizontal: 16 }}>
+            Haber bulunamadı.
+          </Text>
+        )}
       </View>
 
       <View style={{ height: 40 }} />
@@ -215,27 +443,80 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   heroImage: {
+    ...StyleSheet.absoluteFillObject,
     width: "100%",
     height: "100%",
     resizeMode: "cover",
   },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 30, 70, 0.6)",
-    justifyContent: "flex-end",
+  heroContent: {
     padding: 20,
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    height: "100%",
   },
-  heroTitle: {
-    color: Colors.brand.white,
-    fontSize: 20,
+  heroBadge: {
+    backgroundColor: Colors.brand.yellow,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 10,
+  },
+  heroBadgeText: {
+    color: Colors.brand.navy,
+    fontSize: 12,
     fontWeight: "bold",
-    marginBottom: 12,
   },
-  heroButton: {
-    alignSelf: "flex-start",
+  heroMatchRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    paddingHorizontal: 10,
   },
-  heroButtonText: {
-    color: Colors.brand.yellow,
+  heroTeam: {
+    alignItems: "center",
+    flex: 1,
+  },
+  heroLogo: {
+    width: 60,
+    height: 60,
+    marginBottom: 8,
+  },
+  heroTeamName: {
+    color: Colors.brand.white,
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  heroScoreBoard: {
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1.2,
+  },
+  heroDate: {
+    color: Colors.brand.white,
+    fontSize: 12,
+    opacity: 0.8,
+    marginBottom: 4,
+  },
+  heroTime: {
+    color: Colors.brand.white,
+    fontSize: 32,
+    fontWeight: "900",
+    letterSpacing: 2,
+  },
+  heroActionBtn: {
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+    marginBottom: 10,
+  },
+  heroActionBtnText: {
+    color: Colors.brand.white,
     fontSize: 14,
     fontWeight: "bold",
   },
@@ -259,6 +540,37 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "bold",
     color: Colors.brand.navy,
+  },
+
+  standingsContainer: {
+    marginHorizontal: 16,
+    borderRadius: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+  },
+  standingsHeaderRow: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.05)",
+  },
+  standingsHeaderText: {
+    color: Colors.light.secondaryText,
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  standingsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.02)",
+  },
+  standingsText: {
+    fontSize: 14,
   },
 
   matchList: {
@@ -358,14 +670,16 @@ const styles = StyleSheet.create({
 
   newsGridRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    paddingRight: 16,
+    paddingBottom: 8,
   },
   smallNewsCard: {
-    width: "48%",
+    width: 160,
+    marginRight: 12,
     borderRadius: 8,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderColor: Colors.light.placeholder,
   },
   smallNewsImagePlaceholder: {
     width: "100%",

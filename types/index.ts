@@ -13,3 +13,27 @@ export interface MatchData {
   time: string;
   stadium: string;
 }
+
+export interface NewsData {
+  id: string;
+  title: string;
+  link: string;
+  image: string;
+  date: string;
+  category: string;
+}
+
+export interface TeamStanding {
+  rank: number;
+  teamId: string;
+  teamName: string;
+  badge: string;
+  played: number;
+  win: number;
+  draw: number;
+  loss: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  points: number;
+}
