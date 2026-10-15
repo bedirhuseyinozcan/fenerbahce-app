@@ -1,43 +1,73 @@
-import { NewsData } from '@/types';
+import { NewsData } from "@/types";
 
 export const fetchNews = async (): Promise<NewsData[]> => {
   try {
-    const response = await fetch('https://www.fotomac.com.tr/rss/fenerbahce.xml');
+    const response = await fetch(
+      "https://www.fotomac.com.tr/rss/fenerbahce.xml",
+    );
     const xmlText = await response.text();
 
     const items = xmlText.match(/<item>([\s\S]*?)<\/item>/g) || [];
+    const seenLinks = new Set<string>();
+    const newsList: NewsData[] = [];
 
-    const newsList: NewsData[] = items.map((item, index) => {
-      const titleMatch = item.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/);
-      const fallbackTitle = item.match(/<title>([\s\S]*?)<\/title>/);
-      const title = titleMatch ? titleMatch[1] : (fallbackTitle ? fallbackTitle[1] : 'Başlık bulunamadı');
-
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
       const linkMatch = item.match(/<link>([\s\S]*?)<\/link>/);
-      const link = linkMatch ? linkMatch[1] : '';
+      const link = linkMatch ? linkMatch[1].trim() : "";
+
+      if (link && seenLinks.has(link)) {
+        continue;
+      }
+      if (link) seenLinks.add(link);
+
+      const titleMatch = item.match(
+        /<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/,
+      );
+      const fallbackTitle = item.match(/<title>([\s\S]*?)<\/title>/);
+      const title = titleMatch
+        ? titleMatch[1].trim()
+        : fallbackTitle
+          ? fallbackTitle[1].trim()
+          : "Fenerbahçe Haberi";
 
       const imageMatch = item.match(/url="([^"]+)"/);
-      const image = imageMatch ? imageMatch[1] : 'https://media.fenerbahce.org/getmedia/5c3702c2-d352-45e3-b09e-7341857c50be/stad.jpg';
+      const image = imageMatch
+        ? imageMatch[1]
+        : "https://media.fenerbahce.org/getmedia/5c3702c2-d352-45e3-b09e-7341857c50be/stad.jpg";
 
       const dateMatch = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
-      let date = '';
+      let date = "";
       if (dateMatch) {
         const d = new Date(dateMatch[1]);
-        date = d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        date = d.toLocaleDateString("tr-TR", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
       }
 
-      const categoryMatch = item.match(/<category><!\[CDATA\[([\s\S]*?)\]\]><\/category>/);
+      const categoryMatch = item.match(
+        /<category><!\[CDATA\[([\s\S]*?)\]\]><\/category>/,
+      );
       const fallbackCat = item.match(/<category>([\s\S]*?)<\/category>/);
-      const category = categoryMatch ? categoryMatch[1].toUpperCase() : (fallbackCat ? fallbackCat[1].toUpperCase() : 'KULÜP');
+      const category = categoryMatch
+        ? categoryMatch[1].toUpperCase()
+        : fallbackCat
+          ? fallbackCat[1].toUpperCase()
+          : "KULÜP";
 
-      return {
-        id: link || String(index),
+      newsList.push({
+        id: `news-${index}-${link.slice(-25).replace(/[^a-zA-Z0-9]/g, "") || index}`,
         title,
         link,
         image,
         date,
-        category
-      };
-    });
+        category,
+      });
+    }
 
     return newsList;
   } catch (error) {

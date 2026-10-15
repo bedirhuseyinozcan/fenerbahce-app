@@ -50,14 +50,14 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="fenerium"
+        name="marslar"
         options={{
-          title: "Fenerium",
-          headerTitle: "Fenerium Mağaza",
+          title: "Marşlar",
+          headerTitle: "Marşlar & Besteler",
           headerStyle: { backgroundColor: Colors.brand.navy },
           headerTintColor: Colors.brand.yellow,
           tabBarIcon: ({ color }) => (
-            <TabBarIcon name="shopping-bag" color={color} />
+            <TabBarIcon name="music" color={color} />
           ),
         }}
       />
