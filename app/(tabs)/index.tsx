@@ -6,7 +6,7 @@ import { fetchNews } from "@/services/newsService";
 import { fetchSuperLigStandings } from "@/services/standingsService";
 import { MatchData, NewsData, TeamStanding } from "@/types";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -20,14 +20,59 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+interface CountdownTime {
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+  isPast: boolean;
+  isToday: boolean;
+}
+
+function calculateTimeLeft(rawDate?: string): CountdownTime {
+  if (!rawDate) {
+    return {
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+      isPast: true,
+      isToday: false,
+    };
+  }
+  const targetTime = new Date(rawDate).getTime();
+  const now = Date.now();
+  const diff = targetTime - now;
+
+  if (isNaN(diff) || diff <= 0) {
+    return {
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+      isPast: true,
+      isToday: false,
+    };
+  }
+
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+  const minutes = Math.floor((diff / 1000 / 60) % 60);
+  const seconds = Math.floor((diff / 1000) % 60);
+
+  return { days, hours, minutes, seconds, isPast: false, isToday: days === 0 };
+}
+
 export default function TabOneScreen() {
   const colorScheme = useColorScheme() ?? "light";
   const theme = Colors[colorScheme];
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const [upcomingMatches, setUpcomingMatches] = useState<MatchData[]>([]);
-  const [nextMatch, setNextMatch] = useState<MatchData | null>(null);
+  const [allFixtures, setAllFixtures] = useState<MatchData[]>([]);
+  const [selectedHeroBranch, setSelectedHeroBranch] = useState<
+    "Futbol" | "Basketbol" | "Voleybol"
+  >("Futbol");
   const [loading, setLoading] = useState(true);
 
   const [news, setNews] = useState<NewsData[]>([]);
@@ -46,13 +91,7 @@ export default function TabOneScreen() {
         fetchSuperLigStandings(),
       ]);
 
-      setUpcomingMatches(fixturesData.slice(0, 4));
-
-      const futureMatch = fixturesData.find(
-        (m) => m.homeScore === null && m.awayScore === null,
-      );
-      setNextMatch(futureMatch || fixturesData[0] || null);
-
+      setAllFixtures(fixturesData);
       setNews(newsData.slice(0, 5));
       setStandings(standingsData.slice(0, 5));
 
@@ -62,6 +101,59 @@ export default function TabOneScreen() {
 
     loadData();
   }, []);
+  const nextMatch = useMemo(() => {
+    const branchUpcoming = allFixtures.find(
+      (m) =>
+        m.branch === selectedHeroBranch &&
+        m.homeScore === null &&
+        m.awayScore === null,
+    );
+    if (branchUpcoming) return branchUpcoming;
+
+    const anyBranchMatch = allFixtures.find(
+      (m) => m.branch === selectedHeroBranch,
+    );
+    if (anyBranchMatch) return anyBranchMatch;
+
+    return allFixtures[0] || null;
+  }, [allFixtures, selectedHeroBranch]);
+
+  const upcomingMatches = useMemo(() => {
+    return allFixtures
+      .filter((m) => m.homeScore === null && m.awayScore === null)
+      .slice(0, 4);
+  }, [allFixtures]);
+
+  const [countdown, setCountdown] = useState<CountdownTime>({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+    isPast: true,
+    isToday: false,
+  });
+
+  useEffect(() => {
+    if (!nextMatch?.rawDate) {
+      setCountdown({
+        days: 0,
+        hours: 0,
+        minutes: 0,
+        seconds: 0,
+        isPast: true,
+        isToday: false,
+      });
+      return;
+    }
+
+    setCountdown(calculateTimeLeft(nextMatch.rawDate));
+
+    const interval = setInterval(() => {
+      setCountdown(calculateTimeLeft(nextMatch.rawDate));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [nextMatch?.rawDate]);
 
   return (
     <ScrollView
@@ -79,11 +171,43 @@ export default function TabOneScreen() {
           <View
             style={[
               StyleSheet.absoluteFill,
-              { backgroundColor: "rgba(7, 33, 70, 0.85)" },
+              { backgroundColor: "rgba(7, 33, 70, 0.88)" },
             ]}
           />
 
           <View style={styles.heroContent}>
+            <View style={styles.heroBranchBar}>
+              {(["Futbol", "Basketbol", "Voleybol"] as const).map((branch) => {
+                const isSelected = selectedHeroBranch === branch;
+                const emoji =
+                  branch === "Futbol"
+                    ? "⚽"
+                    : branch === "Basketbol"
+                      ? "🏀"
+                      : "🏐";
+                return (
+                  <TouchableOpacity
+                    key={branch}
+                    style={[
+                      styles.heroBranchTab,
+                      isSelected && styles.heroBranchTabActive,
+                    ]}
+                    onPress={() => setSelectedHeroBranch(branch)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.heroBranchTabText,
+                        isSelected && styles.heroBranchTabTextActive,
+                      ]}
+                    >
+                      {emoji} {branch}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
             <View style={styles.heroBadge}>
               <Text style={styles.heroBadgeText}>
                 {nextMatch.competition}{" "}
@@ -98,7 +222,7 @@ export default function TabOneScreen() {
                   style={styles.heroLogo}
                   contentFit="contain"
                 />
-                <Text style={styles.heroTeamName} numberOfLines={1}>
+                <Text style={styles.heroTeamName} numberOfLines={2}>
                   {nextMatch.homeTeam}
                 </Text>
               </View>
@@ -106,6 +230,9 @@ export default function TabOneScreen() {
               <View style={styles.heroScoreBoard}>
                 <Text style={styles.heroDate}>{nextMatch.date}</Text>
                 <Text style={styles.heroTime}>{nextMatch.time}</Text>
+                <Text style={styles.heroStadium} numberOfLines={1}>
+                  📍 {nextMatch.stadium}
+                </Text>
               </View>
 
               <View style={styles.heroTeam}>
@@ -114,19 +241,70 @@ export default function TabOneScreen() {
                   style={styles.heroLogo}
                   contentFit="contain"
                 />
-                <Text style={styles.heroTeamName} numberOfLines={1}>
+                <Text style={styles.heroTeamName} numberOfLines={2}>
                   {nextMatch.awayTeam}
                 </Text>
               </View>
             </View>
 
-            <TouchableOpacity
-              style={styles.heroActionBtn}
-              onPress={() => router.push(`/mac/${nextMatch.id}` as any)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.heroActionBtnText}>Maç Merkezine Git</Text>
-            </TouchableOpacity>
+            {!countdown.isPast ? (
+              <View style={styles.countdownContainer}>
+                <Text style={styles.countdownTitle}>
+                  ⚡ BAŞLAMASINA KALAN SÜRE
+                </Text>
+                <View style={styles.countdownRow}>
+                  <View style={styles.countdownBox}>
+                    <Text style={styles.countdownNumber}>
+                      {String(countdown.days).padStart(2, "0")}
+                    </Text>
+                    <Text style={styles.countdownLabel}>GÜN</Text>
+                  </View>
+                  <Text style={styles.countdownColon}>:</Text>
+                  <View style={styles.countdownBox}>
+                    <Text style={styles.countdownNumber}>
+                      {String(countdown.hours).padStart(2, "0")}
+                    </Text>
+                    <Text style={styles.countdownLabel}>SAAT</Text>
+                  </View>
+                  <Text style={styles.countdownColon}>:</Text>
+                  <View style={styles.countdownBox}>
+                    <Text style={styles.countdownNumber}>
+                      {String(countdown.minutes).padStart(2, "0")}
+                    </Text>
+                    <Text style={styles.countdownLabel}>DAKİKA</Text>
+                  </View>
+                  <Text style={styles.countdownColon}>:</Text>
+                  <View style={styles.countdownBox}>
+                    <Text style={styles.countdownNumber}>
+                      {String(countdown.seconds).padStart(2, "0")}
+                    </Text>
+                    <Text style={styles.countdownLabel}>SANİYE</Text>
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.matchDayBanner}>
+                <Text style={styles.matchDayBannerText}>
+                  🔥 BUGÜN MAÇ GÜNÜ! 🔥
+                </Text>
+              </View>
+            )}
+            <View style={styles.heroButtonsRow}>
+              <TouchableOpacity
+                style={styles.heroActionBtn}
+                onPress={() => router.push(`/mac/${nextMatch.id}` as any)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.heroActionBtnText}>Maç Detayı</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.heroSecondaryBtn}
+                onPress={() => router.push("/fikstur")}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.heroSecondaryBtnText}>Tüm Fikstür</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       ) : (
@@ -563,8 +741,9 @@ const styles = StyleSheet.create({
   },
   heroContainer: {
     width: "100%",
-    height: 250,
+    minHeight: 330,
     position: "relative",
+    paddingBottom: 16,
   },
   heroImage: {
     ...StyleSheet.absoluteFill,
@@ -573,22 +752,47 @@ const styles = StyleSheet.create({
     resizeMode: "cover",
   },
   heroContent: {
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingTop: 12,
     alignItems: "center",
-    justifyContent: "space-between",
     width: "100%",
-    height: "100%",
+  },
+  heroBranchBar: {
+    flexDirection: "row",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    borderRadius: 20,
+    padding: 3,
+    marginBottom: 8,
+  },
+  heroBranchTab: {
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 16,
+  },
+  heroBranchTabActive: {
+    backgroundColor: Colors.brand.yellow,
+  },
+  heroBranchTabText: {
+    color: "rgba(255, 255, 255, 0.75)",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  heroBranchTabTextActive: {
+    color: Colors.brand.navy,
+    fontWeight: "bold",
   },
   heroBadge: {
-    backgroundColor: Colors.brand.yellow,
+    backgroundColor: "rgba(255, 237, 0, 0.2)",
+    borderWidth: 1,
+    borderColor: Colors.brand.yellow,
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 12,
-    marginTop: 10,
+    marginBottom: 10,
   },
   heroBadgeText: {
-    color: Colors.brand.navy,
-    fontSize: 12,
+    color: Colors.brand.yellow,
+    fontSize: 11,
     fontWeight: "bold",
   },
   heroMatchRow: {
@@ -596,21 +800,21 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     width: "100%",
-    paddingHorizontal: 10,
+    paddingHorizontal: 6,
   },
   heroTeam: {
     alignItems: "center",
     flex: 1,
   },
   heroLogo: {
-    width: 60,
-    height: 60,
-    marginBottom: 8,
+    width: 52,
+    height: 52,
+    marginBottom: 6,
   },
   heroTeamName: {
     color: Colors.brand.white,
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "bold",
     textAlign: "center",
   },
   heroScoreBoard: {
@@ -620,28 +824,120 @@ const styles = StyleSheet.create({
   },
   heroDate: {
     color: Colors.brand.white,
-    fontSize: 12,
-    opacity: 0.8,
-    marginBottom: 4,
+    fontSize: 11,
+    opacity: 0.85,
+    marginBottom: 2,
+    textAlign: "center",
   },
   heroTime: {
-    color: Colors.brand.white,
-    fontSize: 32,
+    color: Colors.brand.yellow,
+    fontSize: 26,
     fontWeight: "900",
-    letterSpacing: 2,
+    letterSpacing: 1,
+  },
+  heroStadium: {
+    color: Colors.brand.white,
+    fontSize: 9,
+    opacity: 0.75,
+    marginTop: 3,
+    textAlign: "center",
+  },
+  countdownContainer: {
+    marginTop: 12,
+    width: "100%",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    borderRadius: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 237, 0, 0.25)",
+  },
+  countdownTitle: {
+    color: Colors.brand.yellow,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  countdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  countdownBox: {
+    backgroundColor: "rgba(7, 33, 70, 0.9)",
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    minWidth: 44,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 237, 0, 0.35)",
+  },
+  countdownNumber: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "900",
+  },
+  countdownLabel: {
+    color: Colors.brand.yellow,
+    fontSize: 8,
+    fontWeight: "bold",
+    marginTop: 1,
+  },
+  countdownColon: {
+    color: Colors.brand.yellow,
+    fontSize: 16,
+    fontWeight: "900",
+    marginBottom: 8,
+  },
+  matchDayBanner: {
+    marginTop: 12,
+    backgroundColor: Colors.brand.yellow,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  matchDayBannerText: {
+    color: Colors.brand.navy,
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  heroButtonsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 12,
+    width: "100%",
   },
   heroActionBtn: {
-    backgroundColor: "rgba(255,255,255,0.15)",
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
-    marginBottom: 10,
+    flex: 1,
+    backgroundColor: Colors.brand.yellow,
+    paddingVertical: 9,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   heroActionBtnText: {
-    color: Colors.brand.white,
-    fontSize: 14,
+    color: Colors.brand.navy,
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  heroSecondaryBtn: {
+    flex: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    paddingVertical: 9,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroSecondaryBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
     fontWeight: "bold",
   },
 

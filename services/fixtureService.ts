@@ -1,23 +1,93 @@
 import { MatchData } from "@/types";
+
 export const fallbackCuratedFixtures: MatchData[] = [
   {
-    id: "fb-live-1",
+    id: "fb-live-next-1",
+    branch: "Futbol",
+    competition: "Trendyol Süper Lig",
+    round: "9. Hafta",
+    homeTeam: "Fenerbahçe",
+    homeLogo: "fener.png",
+    homeScore: null,
+    awayTeam: "Corendon Alanyaspor",
+    awayLogo:
+      "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/18151.png",
+    awayScore: null,
+    date: "17 Ekim 2026, Cumartesi",
+    time: "19:00",
+    stadium: "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi",
+    rawDate: "2026-10-17T16:00:00Z",
+  },
+  {
+    id: "fb-live-next-2",
     branch: "Futbol",
     competition: "UEFA Şampiyonlar Ligi",
     round: "Lig Aşaması",
     homeTeam: "Fenerbahçe",
     homeLogo: "fener.png",
-    homeScore: "1",
-    awayTeam: "AS Roma",
+    homeScore: null,
+    awayTeam: "Slavia Prague",
     awayLogo:
-      "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/104.png",
-    awayScore: "1",
-    date: "10 Eylül 2026, Perşembe",
+      "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/455.png",
+    awayScore: null,
+    date: "20 Ekim 2026, Salı",
     time: "19:45",
     stadium: "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi",
+    rawDate: "2026-10-20T16:45:00Z",
   },
   {
-    id: "fb-live-2",
+    id: "fb-live-next-3",
+    branch: "Futbol",
+    competition: "Trendyol Süper Lig",
+    round: "10. Hafta (Derbi)",
+    homeTeam: "Galatasaray",
+    homeLogo:
+      "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/437.png",
+    homeScore: null,
+    awayTeam: "Fenerbahçe",
+    awayLogo: "fener.png",
+    awayScore: null,
+    date: "26 Ekim 2026, Pazartesi",
+    time: "20:00",
+    stadium: "RAMS Park",
+    rawDate: "2026-10-26T17:00:00Z",
+  },
+  {
+    id: "el-live-1",
+    branch: "Basketbol",
+    competition: "EuroLeague",
+    round: "Round 2",
+    homeTeam: "Fenerbahçe Beko",
+    homeLogo: "fener.png",
+    homeScore: null,
+    awayTeam: "Panathinaikos AKTOR",
+    awayLogo:
+      "https://media-cdn.incrowdsports.com/f04778be-c6e3-4613-81b8-6b45a64b971a.png",
+    awayScore: null,
+    date: "18 Ekim 2026, Pazar",
+    time: "20:45",
+    stadium: "Ülker Spor ve Etkinlik Salonu",
+    rawDate: "2026-10-18T17:45:00Z",
+  },
+  {
+    id: "vb-live-1",
+    branch: "Voleybol",
+    competition: "Vodafone Sultanlar Ligi",
+    round: "2. Hafta",
+    homeTeam: "Fenerbahçe Medicana",
+    homeLogo: "fener.png",
+    homeScore: null,
+    awayTeam: "Ziraat Bankası",
+    awayLogo:
+      "https://r2.thesportsdb.com/images/media/team/badge/zrw7gq1601633519.png",
+    awayScore: null,
+    date: "17 Ekim 2026, Cumartesi",
+    time: "16:00",
+    stadium: "Burhan Felek Vestel Voleybol Salonu",
+    rawDate: "2026-10-17T13:00:00Z",
+  },
+  {
+    id: "fb-live-past-1",
     branch: "Futbol",
     competition: "Süper Lig",
     round: "8. Hafta",
@@ -31,9 +101,10 @@ export const fallbackCuratedFixtures: MatchData[] = [
     date: "10 Ekim 2026, Cumartesi",
     time: "19:00",
     stadium: "Çaykur Didi Stadyumu",
+    rawDate: "2026-10-10T16:00:00Z",
   },
   {
-    id: "fb-live-3",
+    id: "fb-live-past-2",
     branch: "Futbol",
     competition: "Süper Lig",
     round: "7. Hafta",
@@ -47,53 +118,30 @@ export const fallbackCuratedFixtures: MatchData[] = [
     date: "20 Eylül 2026, Pazar",
     time: "17:00",
     stadium: "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi",
-  },
-  {
-    id: "el-live-1",
-    branch: "Basketbol",
-    competition: "EuroLeague",
-    round: "Round 1",
-    homeTeam: "Fenerbahçe Beko",
-    homeLogo: "fener.png",
-    homeScore: "82",
-    awayTeam: "Olympiacos Piraeus",
-    awayLogo:
-      "https://media-cdn.incrowdsports.com/2681304e-77dd-4331-88b1-683078c0fb49.png",
-    awayScore: "71",
-    date: "4 Ekim 2026, Cuma",
-    time: "20:30",
-    stadium: "Ülker Spor ve Etkinlik Salonu",
-  },
-  {
-    id: "vb-live-1",
-    branch: "Voleybol",
-    competition: "Sultanlar Ligi",
-    round: "1. Hafta",
-    homeTeam: "Fenerbahçe Medicana",
-    homeLogo: "fener.png",
-    homeScore: "3",
-    awayTeam: "Eczacıbaşı Dynavit",
-    awayLogo:
-      "https://r2.thesportsdb.com/images/media/team/badge/zrw7gq1601633519.png",
-    awayScore: "1",
-    date: "5 Ekim 2026, Cumartesi",
-    time: "19:00",
-    stadium: "Burhan Felek Vestel Voleybol Salonu",
+    rawDate: "2026-09-20T14:00:00Z",
   },
 ];
+
 export const fetchFixtures = async (): Promise<MatchData[]> => {
   try {
-    const allMatches: MatchData[] = [];
+    const matchMap = new Map<string, MatchData>();
 
     try {
-      const [superLigRes, uefaRes] = await Promise.all([
-        fetch(
-          "https://site.api.espn.com/apis/site/v2/sports/soccer/tur.1/teams/436/schedule",
-        ),
-        fetch(
-          "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/teams/436/schedule",
-        ),
-      ]);
+      const [superLigPastRes, superLigFutureRes, uefaPastRes, uefaFutureRes] =
+        await Promise.all([
+          fetch(
+            "https://site.api.espn.com/apis/site/v2/sports/soccer/tur.1/teams/436/schedule",
+          ),
+          fetch(
+            "https://site.api.espn.com/apis/site/v2/sports/soccer/tur.1/teams/436/schedule?fixture=true",
+          ),
+          fetch(
+            "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/teams/436/schedule",
+          ),
+          fetch(
+            "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/teams/436/schedule?fixture=true",
+          ),
+        ]);
 
       const parseEspnEvents = async (res: Response, compFallback: string) => {
         if (!res.ok) return;
@@ -117,6 +165,8 @@ export const fetchFixtures = async (): Promise<MatchData[]> => {
           const isFBHome = homeName.toLowerCase().includes("fenerbah");
           const isFBAway = awayName.toLowerCase().includes("fenerbah");
 
+          const isCompleted = comp.status?.type?.completed === true;
+
           const dateObj = new Date(comp.date);
           const dateStr = dateObj.toLocaleDateString("tr-TR", {
             day: "numeric",
@@ -132,15 +182,16 @@ export const fetchFixtures = async (): Promise<MatchData[]> => {
           const compName =
             comp.notes?.[0]?.headline ||
             (compFallback === "Süper Lig"
-              ? "Süper Lig"
+              ? "Trendyol Süper Lig"
               : "UEFA Şampiyonlar Ligi");
 
           const roundStr =
             comp.round?.displayName ||
-            (comp.notes?.[0]?.headline ? "" : "Lig Aşaması");
+            (comp.notes?.[0]?.headline ? "" : "Lig Maçı");
 
-          allMatches.push({
-            id: String(event.id),
+          const matchId = String(event.id);
+          matchMap.set(matchId, {
+            id: matchId,
             branch: "Futbol",
             competition: compName,
             round: roundStr,
@@ -148,12 +199,16 @@ export const fetchFixtures = async (): Promise<MatchData[]> => {
             homeLogo: isFBHome
               ? "fener.png"
               : homeComp.team?.logo || homeComp.team?.logos?.[0]?.href,
-            homeScore: homeComp.score?.displayValue ?? null,
+            homeScore: isCompleted
+              ? (homeComp.score?.displayValue ?? "0")
+              : null,
             awayTeam: isFBAway ? "Fenerbahçe" : awayName,
             awayLogo: isFBAway
               ? "fener.png"
               : awayComp.team?.logo || awayComp.team?.logos?.[0]?.href,
-            awayScore: awayComp.score?.displayValue ?? null,
+            awayScore: isCompleted
+              ? (awayComp.score?.displayValue ?? "0")
+              : null,
             date: dateStr,
             time: timeStr !== "Invalid Date" ? timeStr : "20:00",
             stadium:
@@ -161,13 +216,16 @@ export const fetchFixtures = async (): Promise<MatchData[]> => {
               (isFBHome
                 ? "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi"
                 : "Deplasman"),
+            rawDate: comp.date,
           });
         });
       };
 
       await Promise.all([
-        parseEspnEvents(superLigRes, "Süper Lig"),
-        parseEspnEvents(uefaRes, "UEFA Şampiyonlar Ligi"),
+        parseEspnEvents(superLigPastRes, "Süper Lig"),
+        parseEspnEvents(superLigFutureRes, "Süper Lig"),
+        parseEspnEvents(uefaPastRes, "UEFA Şampiyonlar Ligi"),
+        parseEspnEvents(uefaFutureRes, "UEFA Şampiyonlar Ligi"),
       ]);
     } catch (err) {
       console.warn("ESPN futbol maç takvimi çekilemedi:", err);
@@ -200,10 +258,11 @@ export const fetchFixtures = async (): Promise<MatchData[]> => {
               minute: "2-digit",
             });
 
-            allMatches.push({
-              id: `el-${g.gameCode}`,
+            const matchId = `el-${g.gameCode}`;
+            matchMap.set(matchId, {
+              id: matchId,
               branch: "Basketbol",
-              competition: "EuroLeague",
+              competition: "Turkish Airlines EuroLeague",
               round: g.roundName || `Round ${g.round}`,
               homeTeam: isFBLocal
                 ? "Fenerbahçe Beko"
@@ -220,6 +279,7 @@ export const fetchFixtures = async (): Promise<MatchData[]> => {
               stadium:
                 g.venue?.name ||
                 (isFBLocal ? "Ülker Spor ve Etkinlik Salonu" : "Deplasman"),
+              rawDate: g.date,
             });
           });
         }
@@ -227,7 +287,6 @@ export const fetchFixtures = async (): Promise<MatchData[]> => {
     } catch (err) {
       console.warn("EuroLeague maç takvimi çekilemedi:", err);
     }
-
     try {
       const [vLastRes, vNextRes] = await Promise.all([
         fetch(
@@ -247,11 +306,16 @@ export const fetchFixtures = async (): Promise<MatchData[]> => {
           const dateObj = new Date(item.dateEvent);
           const isFBHome = item.strHomeTeam?.includes("Fenerbah");
           const isFBAway = item.strAwayTeam?.includes("Fenerbah");
+          const matchId = `tsdb-${item.idEvent}`;
 
-          allMatches.push({
-            id: `tsdb-${item.idEvent}`,
+          const rawDateStr = item.dateEvent
+            ? `${item.dateEvent}T${item.strTime || "16:00:00"}Z`
+            : undefined;
+
+          matchMap.set(matchId, {
+            id: matchId,
             branch: "Voleybol",
-            competition: item.strLeague || "Sultanlar Ligi",
+            competition: item.strLeague || "Vodafone Sultanlar Ligi",
             round: item.intRound ? `${item.intRound}. Hafta` : "Lig Maçı",
             homeTeam: isFBHome ? "Fenerbahçe Medicana" : item.strHomeTeam,
             homeLogo: isFBHome ? "fener.png" : item.strHomeTeamBadge,
@@ -269,6 +333,7 @@ export const fetchFixtures = async (): Promise<MatchData[]> => {
               ? item.strTimeLocal.substring(0, 5)
               : "19:00",
             stadium: item.strVenue || "Burhan Felek Vestel Voleybol Salonu",
+            rawDate: rawDateStr,
           });
         });
       };
@@ -277,6 +342,8 @@ export const fetchFixtures = async (): Promise<MatchData[]> => {
     } catch (err) {
       console.warn("TheSportsDB voleybol çekilemedi:", err);
     }
+
+    const allMatches = Array.from(matchMap.values());
 
     if (allMatches.length === 0) {
       return fallbackCuratedFixtures;
@@ -289,7 +356,28 @@ export const fetchFixtures = async (): Promise<MatchData[]> => {
       allMatches.push(...vFallback);
     }
 
-    return allMatches;
+    const now = Date.now();
+    const upcoming = allMatches
+      .filter((m) => m.homeScore === null && m.awayScore === null)
+      .sort((a, b) => {
+        const timeA = a.rawDate
+          ? new Date(a.rawDate).getTime()
+          : now + 999999999;
+        const timeB = b.rawDate
+          ? new Date(b.rawDate).getTime()
+          : now + 999999999;
+        return timeA - timeB;
+      });
+
+    const past = allMatches
+      .filter((m) => m.homeScore !== null && m.awayScore !== null)
+      .sort((a, b) => {
+        const timeA = a.rawDate ? new Date(a.rawDate).getTime() : 0;
+        const timeB = b.rawDate ? new Date(b.rawDate).getTime() : 0;
+        return timeB - timeA;
+      });
+
+    return [...upcoming, ...past];
   } catch (error) {
     console.error("fetchFixtures genel hata:", error);
     return fallbackCuratedFixtures;

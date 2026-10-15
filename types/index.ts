@@ -12,6 +12,7 @@ export interface MatchData {
   date: string;
   time: string;
   stadium: string;
+  rawDate?: string;
 }
 
 export interface NewsData {
