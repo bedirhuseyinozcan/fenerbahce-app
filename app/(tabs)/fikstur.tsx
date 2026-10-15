@@ -2,6 +2,7 @@ import MatchCard from "@/components/MatchCard";
 import Colors from "@/constants/Colors";
 import { fetchFixtures } from "@/services/fixtureService";
 import { MatchData } from "@/types";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,6 +17,7 @@ import {
 const BRANCHES = ["Tümü", "Futbol", "Basketbol", "Voleybol"];
 
 export default function FiksturScreen() {
+  const router = useRouter();
   const colorScheme = useColorScheme() ?? "light";
   const theme = Colors[colorScheme];
 
@@ -94,6 +96,7 @@ export default function FiksturScreen() {
           renderItem={({ item }) => (
             <View style={styles.cardWrapper}>
               <MatchCard
+                id={item.id}
                 branch={item.branch}
                 competition={item.competition}
                 round={item.round}
@@ -107,6 +110,7 @@ export default function FiksturScreen() {
                 time={item.time}
                 stadium={item.stadium}
                 isFullWidth={true}
+                onPress={() => router.push(`/mac/${item.id}` as any)}
               />
             </View>
           )}

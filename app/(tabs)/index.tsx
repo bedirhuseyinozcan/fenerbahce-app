@@ -78,7 +78,7 @@ export default function TabOneScreen() {
           />
           <View
             style={[
-              StyleSheet.absoluteFillObject,
+              StyleSheet.absoluteFill,
               { backgroundColor: "rgba(7, 33, 70, 0.85)" },
             ]}
           />
@@ -120,7 +120,11 @@ export default function TabOneScreen() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.heroActionBtn}>
+            <TouchableOpacity
+              style={styles.heroActionBtn}
+              onPress={() => router.push(`/mac/${nextMatch.id}` as any)}
+              activeOpacity={0.8}
+            >
               <Text style={styles.heroActionBtnText}>Maç Merkezine Git</Text>
             </TouchableOpacity>
           </View>
@@ -170,6 +174,7 @@ export default function TabOneScreen() {
             {upcomingMatches.map((item) => (
               <MatchCard
                 key={item.id}
+                id={item.id}
                 branch={item.branch}
                 competition={item.competition}
                 round={item.round}
@@ -182,6 +187,7 @@ export default function TabOneScreen() {
                 date={item.date}
                 time={item.time}
                 stadium={item.stadium}
+                onPress={() => router.push(`/mac/${item.id}` as any)}
               />
             ))}
             {upcomingMatches.length === 0 && (
@@ -443,7 +449,7 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   heroImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     width: "100%",
     height: "100%",
     resizeMode: "cover",

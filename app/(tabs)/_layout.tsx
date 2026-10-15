@@ -8,7 +8,7 @@ import Colors from "@/constants/Colors";
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>["name"];
-  color: string;
+  color: any;
 }) {
   return <FontAwesome size={26} style={{ marginBottom: -3 }} {...props} />;
 }

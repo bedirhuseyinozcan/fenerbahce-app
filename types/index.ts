@@ -37,3 +37,58 @@ export interface TeamStanding {
   goalDifference: number;
   points: number;
 }
+
+export type EventType =
+  | "goal"
+  | "yellow-card"
+  | "red-card"
+  | "substitution"
+  | "var";
+
+export interface MatchEvent {
+  id: string;
+  minute: number;
+  extraMinute?: number;
+  type: EventType;
+  team: "home" | "away";
+  player: string;
+  detail?: string;
+}
+
+export interface Player {
+  id: string;
+  number: number;
+  name: string;
+  position: "GK" | "DF" | "MF" | "FW";
+  gridPosition: { x: number; y: number };
+}
+
+export interface LineupSubstitute {
+  id: string;
+  number: number;
+  name: string;
+  position: string;
+}
+
+export interface Lineup {
+  formation: string;
+  coach: string;
+  startingXI: Player[];
+  substitutes: LineupSubstitute[];
+}
+
+export interface MatchStat {
+  label: string;
+  homeValue: number | string;
+  awayValue: number | string;
+  homePercentage: number;
+}
+
+export interface MatchDetailData extends MatchData {
+  status: "upcoming" | "live" | "finished";
+  referee?: string;
+  events: MatchEvent[];
+  homeLineup: Lineup;
+  awayLineup: Lineup;
+  stats: MatchStat[];
+}

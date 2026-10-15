@@ -1,9 +1,10 @@
 import CloudinaryImage from "@/components/CloudinaryImage";
 import Colors from "@/constants/Colors";
 import React from "react";
-import { StyleSheet, Text, useColorScheme, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, useColorScheme, View } from "react-native";
 
 interface MatchCardProps {
+  id?: string;
   homeTeam: string;
   homeLogo?: string;
   homeScore?: string | null;
@@ -17,9 +18,11 @@ interface MatchCardProps {
   round?: string;
   branch?: string;
   isFullWidth?: boolean;
+  onPress?: () => void;
 }
 
 export default function MatchCard({
+  id,
   homeTeam,
   homeLogo,
   homeScore,
@@ -33,6 +36,7 @@ export default function MatchCard({
   round,
   branch = "Futbol",
   isFullWidth = false,
+  onPress,
 }: MatchCardProps) {
   const colorScheme = useColorScheme() ?? "light";
   const theme = Colors[colorScheme];
@@ -40,7 +44,10 @@ export default function MatchCard({
   const isFinished = homeScore != null && awayScore != null;
 
   return (
-    <View
+    <TouchableOpacity
+      activeOpacity={onPress ? 0.85 : 1}
+      onPress={onPress}
+      disabled={!onPress}
       style={[
         styles.card,
         {
@@ -150,7 +157,7 @@ export default function MatchCard({
           </Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
