@@ -185,9 +185,29 @@ export const fetchFixtures = async (): Promise<MatchData[]> => {
               ? "Trendyol Süper Lig"
               : "UEFA Şampiyonlar Ligi");
 
-          const roundStr =
-            comp.round?.displayName ||
-            (comp.notes?.[0]?.headline ? "" : "Lig Maçı");
+          let roundStr = "";
+          if (comp.round?.displayName) {
+            const raw = comp.round.displayName;
+            if (/matchday\s*(\d+)/i.test(raw)) {
+              roundStr = raw.replace(/matchday\s*(\d+)/i, "$1. Hafta");
+            } else if (/round\s*of\s*16/i.test(raw)) {
+              roundStr = "Son 16 Turu";
+            } else if (/quarter/i.test(raw)) {
+              roundStr = "Çeyrek Final";
+            } else if (/semi/i.test(raw)) {
+              roundStr = "Yarı Final";
+            } else if (/final/i.test(raw)) {
+              roundStr = "Final";
+            } else {
+              roundStr = raw;
+            }
+          } else if (compFallback === "UEFA Şampiyonlar Ligi") {
+            roundStr = "Lig Aşaması";
+          } else if (comp.notes?.[0]?.headline) {
+            roundStr = "";
+          } else {
+            roundStr = "Lig Maçı";
+          }
 
           const matchId = String(event.id);
           matchMap.set(matchId, {

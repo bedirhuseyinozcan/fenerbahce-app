@@ -291,31 +291,266 @@ function mapPositionAbbr(pos: string = ""): string {
   return "OY";
 }
 
-function parseEspnEventType(typeText: string = ""): EventType {
-  const t = typeText.toLowerCase();
-  if (t.includes("goal") || t.includes("penalty - scored")) return "goal";
-  if (t.includes("yellow")) return "yellow-card";
-  if (t.includes("red")) return "red-card";
-  if (t.includes("substitution")) return "substitution";
-  if (t.includes("var")) return "var";
-  return "goal";
+function isSamePlayer(nameA: string, nameB: string): boolean {
+  if (!nameA || !nameB) return false;
+  const clean = (s: string) =>
+    s
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, "")
+      .trim();
+
+  const a = clean(nameA);
+  const b = clean(nameB);
+  if (a === b) return true;
+  if (a.includes(b) || b.includes(a)) return true;
+
+  const partsA = a.split(/\s+/).filter(Boolean);
+  const partsB = b.split(/\s+/).filter(Boolean);
+  const lastA = partsA[partsA.length - 1];
+  const lastB = partsB[partsB.length - 1];
+  if (lastA && lastB && lastA === lastB && lastA.length > 2) return true;
+
+  return false;
 }
 
-function extractPlayerName(k: any): string {
-  if (k.athlete?.displayName) return k.athlete.displayName;
-  if (k.participants?.[0]?.athlete?.displayName)
-    return k.participants[0].athlete.displayName;
-  if (typeof k.text === "string") {
-    const match = k.text.match(
-      /(?:Goal|Substitution|Penalty - Scored|Yellow Card|Red Card)?\s*([^(]+)\s*\(/i,
-    );
-    if (match && match[1]) {
-      return match[1].trim();
+function attachStatsToLineup(
+  lineup: Lineup,
+  teamKey: "home" | "away",
+  goalsAndAssists: {
+    team: "home" | "away";
+    scorer: string;
+    assister?: string;
+  }[],
+) {
+  if (!lineup) return;
+  const teamEvents = goalsAndAssists.filter((e) => e.team === teamKey);
+
+  const tallyPlayer = (p: {
+    name: string;
+    goals?: number;
+    assists?: number;
+  }) => {
+    let goals = 0;
+    let assists = 0;
+    teamEvents.forEach((ev) => {
+      if (isSamePlayer(p.name, ev.scorer)) {
+        goals++;
+      }
+      if (ev.assister && isSamePlayer(p.name, ev.assister)) {
+        assists++;
+      }
+    });
+    if (goals > 0) {
+      p.goals = goals;
+    } else {
+      delete p.goals;
     }
-    const clean = k.text.split("(")[0].trim();
-    if (clean) return clean;
+    if (assists > 0) {
+      p.assists = assists;
+    } else {
+      delete p.assists;
+    }
+  };
+
+  if (Array.isArray(lineup.startingXI)) {
+    lineup.startingXI.forEach(tallyPlayer);
   }
-  return "Oyuncu";
+  if (Array.isArray(lineup.substitutes)) {
+    lineup.substitutes.forEach(tallyPlayer);
+  }
+}
+
+function parseAndTranslateEspnEvent(
+  k: any,
+  homeComp: any,
+  awayComp: any,
+): {
+  type: EventType;
+  team: "home" | "away";
+  player: string;
+  detail: string;
+  assister?: string;
+} | null {
+  const text = (k.text || "").trim();
+  const typeText = (k.type?.text || "").toLowerCase();
+
+  const isAction =
+    typeText.includes("goal") ||
+    typeText.includes("card") ||
+    typeText.includes("substitution") ||
+    typeText.includes("penalty") ||
+    typeText.includes("var") ||
+    text.toLowerCase().startsWith("goal!");
+
+  if (!isAction) return null;
+
+  let type: EventType = "goal";
+  if (typeText.includes("yellow")) {
+    type = "yellow-card";
+  } else if (typeText.includes("red card") || /\bred\b/.test(typeText)) {
+    type = "red-card";
+  } else if (typeText.includes("substitution")) {
+    type = "substitution";
+  } else if (typeText.includes("var")) {
+    type = "var";
+  }
+
+  let team: "home" | "away" = "home";
+  if (k.team?.id) {
+    team = k.team.id === homeComp?.id ? "home" : "away";
+  } else if (text) {
+    const homeName = (homeComp?.team?.displayName || "").toLowerCase();
+    const awayName = (awayComp?.team?.displayName || "").toLowerCase();
+    if (homeName && text.toLowerCase().includes(homeName)) team = "home";
+    else if (awayName && text.toLowerCase().includes(awayName)) team = "away";
+  }
+
+  const getParticipant = () => {
+    const p = k.participants?.[0];
+    if (!p) return "";
+    if (typeof p.athlete === "string") return p.athlete;
+    if (p.athlete?.displayName) return p.athlete.displayName;
+    if (p.displayName) return p.displayName;
+    return "";
+  };
+  if (type === "substitution") {
+    const subDetailed = text.match(
+      /Substitution,\s*[^.]*\.\s*([^(]+?)\s+replaces\s+([^(.]+)/i,
+    );
+    if (subDetailed) {
+      const player = subDetailed[1].trim();
+      const outPlayer = subDetailed[2]
+        .replace(/\s*because of an injury/i, "")
+        .trim();
+      const isInjury = text.toLowerCase().includes("injury");
+      const detail =
+        "Oyuna Girdi (Çıkan: " +
+        outPlayer +
+        ")" +
+        (isInjury ? " [Sakatlık]" : "");
+      return { type, team, player, detail };
+    } else {
+      const subShort = text.match(/^([^(]+?)\s*\([^)]*\)\s*Substitution/i);
+      const player = subShort?.[1]?.trim() || getParticipant() || "Oyuncu";
+      return { type, team, player, detail: "Oyuncu Değişikliği" };
+    }
+  }
+
+  if (type === "yellow-card") {
+    const cardDetailed = text.match(
+      /^([^(]+?)\s*\([^)]*\)\s*is shown the yellow card(?: for (.+))?/i,
+    );
+    const cardShort = text.match(/^([^(]+?)\s*\([^)]*\)\s*Yellow Card/i);
+    const player =
+      cardDetailed?.[1]?.trim() ||
+      cardShort?.[1]?.trim() ||
+      getParticipant() ||
+      "Oyuncu";
+
+    let reason = cardDetailed?.[2]
+      ? cardDetailed[2].replace(/\.$/, "").trim().toLowerCase()
+      : "";
+    let trReason = "";
+    if (reason.includes("bad foul") || reason.includes("roughing"))
+      trReason = "Sert faul";
+    else if (reason.includes("handball")) trReason = "Elle oynama";
+    else if (reason.includes("time wasting")) trReason = "Zaman geçirme";
+    else if (reason.includes("argument") || reason.includes("dissent"))
+      trReason = "Hakeme itiraz";
+    else if (reason.includes("unsporting"))
+      trReason = "Sportmenlik dışı hareket";
+
+    const detail = trReason ? `Sarı Kart (${trReason})` : "Sarı Kart";
+    return { type, team, player, detail };
+  }
+
+  if (type === "red-card") {
+    const cardMatch = text.match(
+      /^([^(]+?)\s*\([^)]*\)\s*(?:is shown the red card|Red Card)/i,
+    );
+    const player = cardMatch?.[1]?.trim() || getParticipant() || "Oyuncu";
+    return { type, team, player, detail: "Kırmızı Kart!" };
+  }
+
+  if (
+    typeText.includes("penalty - scored") ||
+    (typeText.includes("goal") && text.includes("converts the penalty")) ||
+    text.includes("converts the penalty")
+  ) {
+    const penMatch = text.match(
+      /Goal!.*?\.\s*([^(]+?)\s*\([^)]*\)\s*converts the penalty/i,
+    );
+    const player = penMatch?.[1]?.trim() || getParticipant() || "Oyuncu";
+    return { type: "goal", team, player, detail: "Penaltı Golü! ⚽" };
+  }
+
+  if (typeText.includes("own goal") || text.includes("Own Goal")) {
+    const ogMatch = text.match(/Own Goal by\s*([^(]+)/i);
+    const player = ogMatch?.[1]?.trim() || getParticipant() || "Oyuncu";
+    return { type: "goal", team, player, detail: "Kendi Kalesine Gol" };
+  }
+
+  if (
+    type === "goal" ||
+    typeText.includes("goal") ||
+    text.toLowerCase().startsWith("goal!")
+  ) {
+    const scorerDetailed = text.match(/Goal!\s*[^.]*?\.\s*([^(]+?)\s*\(/i);
+    const scorerShort = text.match(/^([^(]+?)\s*\([^)]*\)\s*Goal/i);
+    const player =
+      scorerDetailed?.[1]?.trim() ||
+      scorerShort?.[1]?.trim() ||
+      getParticipant() ||
+      "Oyuncu";
+
+    let assister: string | undefined = undefined;
+    const p1 = k.participants?.[1];
+    if (p1) {
+      assister =
+        (typeof p1.athlete === "string"
+          ? p1.athlete
+          : p1.athlete?.displayName) || p1.displayName;
+    }
+    if (!assister) {
+      const assistMatch = text.match(/Assisted by\s*([^.]+)/i);
+      if (assistMatch) {
+        assister = assistMatch[1].trim();
+      }
+    }
+
+    let shotType = "";
+    const lower = text.toLowerCase();
+    if (lower.includes("header")) shotType = "Kafa Vuruşu";
+    else if (lower.includes("left footed shot")) shotType = "Sol Ayakla Şut";
+    else if (lower.includes("right footed shot")) shotType = "Sağ Ayakla Şut";
+    else if (lower.includes("free kick")) shotType = "Frikik";
+    else if (lower.includes("volley")) shotType = "Vole";
+
+    if (lower.includes("outside the box"))
+      shotType += (shotType ? ", " : "") + "Ceza Sahası Dışı";
+    else if (lower.includes("centre of the box"))
+      shotType += (shotType ? ", " : "") + "Ceza Sahası İçi";
+    else if (lower.includes("very close range"))
+      shotType += (shotType ? ", " : "") + "Altıpas";
+
+    let detail = "Gol!";
+    if (shotType) detail = `Gol! (${shotType})`;
+    if (assister) detail += ` • Asist: ${assister}`;
+
+    return { type: "goal", team, player, detail, assister };
+  }
+
+  if (type === "var") {
+    const player = "VAR İncelemesi";
+    const detail = text.toLowerCase().includes("no goal")
+      ? "Gol İptal Edildi"
+      : "Gol Onaylandı";
+    return { type, team, player, detail };
+  }
+
+  return null;
 }
 
 export const fallbackFootballLineup: Lineup = {
@@ -709,6 +944,23 @@ function generateOpponentLineup(branch: string, name: string): Lineup {
   };
 }
 
+function extractScore(
+  compParticipant: any,
+  cachedScore?: string | null,
+): string | null {
+  if (!compParticipant) return cachedScore ?? null;
+  const s = compParticipant.score;
+  if (s !== undefined && s !== null) {
+    if (typeof s === "object") {
+      if (s.displayValue !== undefined && s.displayValue !== null)
+        return String(s.displayValue);
+      if (s.value !== undefined && s.value !== null) return String(s.value);
+    }
+    return String(s);
+  }
+  return cachedScore ?? null;
+}
+
 export const getMatchDetail = async (
   matchId: string,
 ): Promise<MatchDetailData> => {
@@ -752,13 +1004,23 @@ export const getMatchDetail = async (
               (cachedMatch
                 ? cachedMatch.awayTeam.toLowerCase().includes("fenerbah")
                 : false);
+            const homeScore = extractScore(homeComp, cachedMatch?.homeScore);
+            const awayScore = extractScore(awayComp, cachedMatch?.awayScore);
+
             const state = comp.status?.type?.state;
-            const status: "upcoming" | "live" | "finished" =
-              comp.status?.type?.completed || state === "post"
-                ? "finished"
-                : state === "in"
-                  ? "live"
-                  : "upcoming";
+            const isCompleted =
+              comp.status?.type?.completed === true ||
+              state === "post" ||
+              (homeScore !== null &&
+                awayScore !== null &&
+                cachedMatch?.homeScore !== null &&
+                cachedMatch?.homeScore !== undefined);
+
+            const status: "upcoming" | "live" | "finished" = isCompleted
+              ? "finished"
+              : state === "in"
+                ? "live"
+                : "upcoming";
 
             const dateObj = new Date(comp.date);
             const dateStr = dateObj.toLocaleDateString("tr-TR", {
@@ -884,26 +1146,48 @@ export const getMatchDetail = async (
             );
 
             const events: MatchEvent[] = [];
+            const goalsAndAssists: {
+              team: "home" | "away";
+              scorer: string;
+              assister?: string;
+            }[] = [];
+
             if (Array.isArray(d.keyEvents)) {
               d.keyEvents.forEach((k: any, idx: number) => {
+                const parsed = parseAndTranslateEspnEvent(
+                  k,
+                  homeComp,
+                  awayComp,
+                );
+                if (!parsed) return;
+
                 const clockText = k.clock?.displayValue || "";
                 const minMatch = clockText.match(/(\d+)/);
                 const minute = minMatch ? parseInt(minMatch[1], 10) : 0;
-                const type = parseEspnEventType(k.type?.text);
-                const team = k.team?.id === homeComp?.id ? "home" : "away";
-                const playerName = extractPlayerName(k);
 
                 events.push({
                   id: String(k.id || `ev-${idx}`),
                   minute,
-                  type,
-                  team,
-                  player: playerName,
-                  detail: k.text || undefined,
+                  type: parsed.type,
+                  team: parsed.team,
+                  player: parsed.player,
+                  detail: parsed.detail,
                 });
+
+                if (parsed.type === "goal") {
+                  goalsAndAssists.push({
+                    team: parsed.team,
+                    scorer: parsed.player,
+                    assister: parsed.assister,
+                  });
+                }
               });
               events.sort((a, b) => a.minute - b.minute);
             }
+
+            attachStatsToLineup(homeLineup, "home", goalsAndAssists);
+            attachStatsToLineup(awayLineup, "away", goalsAndAssists);
+
             const stats: MatchStat[] = [];
             const t0 = d.boxscore?.teams?.find(
               (t: any) => t.team?.id === homeComp?.id,
@@ -948,21 +1232,107 @@ export const getMatchDetail = async (
                 }
               });
             }
+            const leagueObj = d.header?.league || {};
+            const leagueName = (
+              leagueObj.name ||
+              leagueObj.slug ||
+              ""
+            ).toLowerCase();
+            const seasonName = (d.header?.season?.name || "").toLowerCase();
+
+            let competition = "";
+            if (
+              leagueName.includes("champion") ||
+              leagueName.includes("uefa.champions") ||
+              seasonName.includes("champions league")
+            ) {
+              competition = "UEFA Şampiyonlar Ligi";
+            } else if (
+              leagueName.includes("europa") ||
+              leagueName.includes("uefa.europa") ||
+              seasonName.includes("europa league")
+            ) {
+              competition = "UEFA Avrupa Ligi";
+            } else if (
+              leagueName.includes("conference") ||
+              leagueName.includes("uefa.conf") ||
+              seasonName.includes("conference league")
+            ) {
+              competition = "UEFA Konferans Ligi";
+            } else if (
+              leagueName.includes("super lig") ||
+              leagueName.includes("tur.1") ||
+              leagueName.includes("süper lig") ||
+              seasonName.includes("super lig")
+            ) {
+              competition = "Trendyol Süper Lig";
+            } else if (comp.notes?.[0]?.headline) {
+              competition = comp.notes[0].headline;
+            } else if (
+              cachedMatch?.competition &&
+              cachedMatch.competition !== "Süper Lig"
+            ) {
+              competition = cachedMatch.competition;
+            } else if (leagueObj.name) {
+              competition = leagueObj.name;
+            } else {
+              competition = cachedMatch?.competition || "Trendyol Süper Lig";
+            }
+
+            let roundStr = "";
+            const rawRound = comp.round?.displayName || "";
+            if (rawRound) {
+              if (/matchday\s*(\d+)/i.test(rawRound)) {
+                roundStr = rawRound.replace(/matchday\s*(\d+)/i, "$1. Hafta");
+              } else if (/round\s*of\s*16/i.test(rawRound)) {
+                roundStr = "Son 16 Turu";
+              } else if (/quarter/i.test(rawRound)) {
+                roundStr = "Çeyrek Final";
+              } else if (/semi/i.test(rawRound)) {
+                roundStr = "Yarı Final";
+              } else if (/final/i.test(rawRound)) {
+                roundStr = "Final";
+              } else {
+                roundStr = rawRound;
+              }
+            } else if (
+              seasonName.includes("league phase") ||
+              leagueName.includes("league phase")
+            ) {
+              roundStr = "Lig Aşaması";
+            } else if (
+              seasonName.includes("group") ||
+              leagueName.includes("group")
+            ) {
+              roundStr = "Grup Aşaması";
+            } else if (cachedMatch?.round && cachedMatch.round !== "Lig Maçı") {
+              roundStr = cachedMatch.round;
+            } else if (comp.notes?.[0]?.headline) {
+              roundStr = "";
+            } else {
+              roundStr = cachedMatch?.round || "Lig Maçı";
+            }
 
             return {
               id: matchId,
               branch: "Futbol",
-              competition: comp.notes?.[0]?.headline || "Süper Lig",
-              round: comp.round?.displayName || "Lig Maçı",
+              competition,
+              round: roundStr,
               homeTeam: homeTeamName,
               homeLogo,
-              homeScore: homeComp?.score?.displayValue ?? null,
+              homeScore,
               awayTeam: awayTeamName,
               awayLogo,
-              awayScore: awayComp?.score?.displayValue ?? null,
+              awayScore,
               date: dateStr,
               time: timeStr !== "Invalid Date" ? timeStr : "20:00",
-              stadium: comp.venue?.fullName || "Ülker Stadyumu",
+              stadium:
+                d.gameInfo?.venue?.fullName ||
+                comp.venue?.fullName ||
+                cachedMatch?.stadium ||
+                (isFBHome
+                  ? "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi"
+                  : `${homeTeamName} Stadyumu`),
               status,
               referee: "Resmi Hakem",
               events,
@@ -1056,6 +1426,21 @@ export const getMatchDetail = async (
                 cachedMatch?.awayLogo ||
                 "logos/euroleague";
 
+            const homeScore = game.played
+              ? String(game.local?.score)
+              : (cachedMatch?.homeScore ?? null);
+            const awayScore = game.played
+              ? String(game.road?.score)
+              : (cachedMatch?.awayScore ?? null);
+            const isCompleted =
+              game.played || (homeScore !== null && awayScore !== null);
+            const stadium =
+              game.venue?.name ||
+              cachedMatch?.stadium ||
+              (isFBLocal
+                ? "Ülker Spor ve Etkinlik Salonu"
+                : `${homeTeam} Salonu`);
+
             return {
               id: matchId,
               branch: "Basketbol",
@@ -1063,10 +1448,10 @@ export const getMatchDetail = async (
               round: game.roundName || `Round ${game.round}`,
               homeTeam,
               homeLogo,
-              homeScore: game.played ? String(game.local?.score) : null,
+              homeScore,
               awayTeam,
               awayLogo,
-              awayScore: game.played ? String(game.road?.score) : null,
+              awayScore,
               date: dateObj.toLocaleDateString("tr-TR", {
                 day: "numeric",
                 month: "long",
@@ -1077,8 +1462,8 @@ export const getMatchDetail = async (
                 hour: "2-digit",
                 minute: "2-digit",
               }),
-              stadium: game.venue?.name || "Ülker Spor ve Etkinlik Salonu",
-              status: game.played ? "finished" : "upcoming",
+              stadium,
+              status: isCompleted ? "finished" : "upcoming",
               quarterScores:
                 qScores.length > 0
                   ? qScores
@@ -1172,7 +1557,18 @@ export const getMatchDetail = async (
       fallbackCuratedFixtures[0];
     const isFbHome = match.homeTeam.toLowerCase().includes("fenerbah");
     const isFinished =
-      match.homeScore !== null && match.homeScore !== undefined;
+      match.homeScore !== null &&
+      match.homeScore !== undefined &&
+      match.homeScore !== "" &&
+      match.awayScore !== null &&
+      match.awayScore !== undefined &&
+      match.awayScore !== "";
+
+    const stadium =
+      match.stadium ||
+      (isFbHome
+        ? "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi"
+        : `${match.homeTeam} Stadyumu`);
 
     let fbLineup = fallbackFootballLineup;
     if (match.branch === "Basketbol") fbLineup = basketballFBLineup;
@@ -1182,6 +1578,71 @@ export const getMatchDetail = async (
       match.branch,
       isFbHome ? match.awayTeam : match.homeTeam,
     );
+
+    const fallbackEvents: MatchEvent[] =
+      isFinished && match.branch === "Futbol"
+        ? [
+            {
+              id: "e1",
+              minute: 18,
+              type: "goal",
+              team: isFbHome ? "home" : "away",
+              player: "Vedat Muriqi",
+              detail: "Kafa Vuruşu • Asist: Archie Brown",
+            },
+            {
+              id: "e2",
+              minute: 44,
+              type: "goal",
+              team: isFbHome ? "home" : "away",
+              player: "Mason Greenwood",
+              detail: "Ceza Sahası Dışı Şut • Asist: Vedat Muriqi",
+            },
+            {
+              id: "e3",
+              minute: 61,
+              type: "yellow-card",
+              team: isFbHome ? "home" : "away",
+              player: "Milan Škriniar",
+              detail: "Sert Müdahale",
+            },
+            {
+              id: "e4",
+              minute: 76,
+              type: "goal",
+              team: isFbHome ? "home" : "away",
+              player: "Kerem Aktürkoğlu",
+              detail: "Plase Vuruş",
+            },
+          ]
+        : [];
+
+    const finalHomeLineup: Lineup = JSON.parse(
+      JSON.stringify(isFbHome ? fbLineup : oppLineup),
+    );
+    const finalAwayLineup: Lineup = JSON.parse(
+      JSON.stringify(isFbHome ? oppLineup : fbLineup),
+    );
+
+    if (fallbackEvents.length > 0) {
+      const fbGoalsAndAssists: {
+        team: "home" | "away";
+        scorer: string;
+        assister?: string;
+      }[] = [];
+      fallbackEvents.forEach((ev) => {
+        if (ev.type === "goal") {
+          const assistMatch = ev.detail?.match(/Asist:\s*([^•,]+)/i);
+          fbGoalsAndAssists.push({
+            team: ev.team,
+            scorer: ev.player,
+            assister: assistMatch ? assistMatch[1].trim() : undefined,
+          });
+        }
+      });
+      attachStatsToLineup(finalHomeLineup, "home", fbGoalsAndAssists);
+      attachStatsToLineup(finalAwayLineup, "away", fbGoalsAndAssists);
+    }
 
     return {
       id: match.id,
@@ -1196,52 +1657,16 @@ export const getMatchDetail = async (
       awayScore: match.awayScore,
       date: match.date,
       time: match.time,
-      stadium: match.stadium,
+      stadium,
       status: isFinished ? "finished" : "upcoming",
       referee: match.branch === "Futbol" ? "Resmi Hakem" : "Baş Hakem",
       quarterScores:
         match.branch === "Basketbol"
           ? ["1.Ç: 22-19", "2.Ç: 20-21", "3.Ç: 24-20", "4.Ç: 21-18"]
           : undefined,
-      events:
-        isFinished && match.branch === "Futbol"
-          ? [
-              {
-                id: "e1",
-                minute: 18,
-                type: "goal",
-                team: isFbHome ? "home" : "away",
-                player: "Vedat Muriqi",
-                detail: "Kafa Vuruşu",
-              },
-              {
-                id: "e2",
-                minute: 44,
-                type: "goal",
-                team: isFbHome ? "home" : "away",
-                player: "Mason Greenwood",
-                detail: "Ceza Sahası Dışı Şut",
-              },
-              {
-                id: "e3",
-                minute: 61,
-                type: "yellow-card",
-                team: isFbHome ? "home" : "away",
-                player: "Milan Škriniar",
-                detail: "Sert Müdahale",
-              },
-              {
-                id: "e4",
-                minute: 76,
-                type: "goal",
-                team: isFbHome ? "home" : "away",
-                player: "Kerem Aktürkoğlu",
-                detail: "Plase Vuruş",
-              },
-            ]
-          : [],
-      homeLineup: isFbHome ? fbLineup : oppLineup,
-      awayLineup: isFbHome ? oppLineup : fbLineup,
+      events: fallbackEvents,
+      homeLineup: finalHomeLineup,
+      awayLineup: finalAwayLineup,
       stats: [
         {
           label: "Topla Oynama",
@@ -1268,6 +1693,20 @@ export const getMatchDetail = async (
     console.error("Match detail fetch error:", error);
     const fbMatch = cachedMatch || fallbackCuratedFixtures[0];
     const isHomeFb = fbMatch.homeTeam.toLowerCase().includes("fenerbah");
+    const isFinished =
+      fbMatch.homeScore !== null &&
+      fbMatch.homeScore !== undefined &&
+      fbMatch.homeScore !== "" &&
+      fbMatch.awayScore !== null &&
+      fbMatch.awayScore !== undefined &&
+      fbMatch.awayScore !== "";
+
+    const stadium =
+      fbMatch.stadium ||
+      (isHomeFb
+        ? "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi"
+        : `${fbMatch.homeTeam} Stadyumu`);
+
     return {
       id: matchId,
       branch: fbMatch.branch,
@@ -1281,8 +1720,8 @@ export const getMatchDetail = async (
       awayScore: fbMatch.awayScore,
       date: fbMatch.date,
       time: fbMatch.time,
-      stadium: fbMatch.stadium,
-      status: fbMatch.homeScore !== null ? "finished" : "upcoming",
+      stadium,
+      status: isFinished ? "finished" : "upcoming",
       events: [],
       homeLineup: isHomeFb
         ? fallbackFootballLineup

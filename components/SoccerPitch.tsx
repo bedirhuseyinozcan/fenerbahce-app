@@ -1,5 +1,6 @@
 import Colors from "@/constants/Colors";
 import { Lineup, Player } from "@/types";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useState } from "react";
 import {
   Dimensions,
@@ -54,6 +55,14 @@ export default function SoccerPitch({
           <Text style={styles.selectedBannerText}>
             #{selectedPlayer.number} {selectedPlayer.name} (
             {selectedPlayer.position})
+            {typeof selectedPlayer.goals === "number" &&
+            selectedPlayer.goals > 0
+              ? ` • ⚽ ${selectedPlayer.goals} Gol`
+              : ""}
+            {typeof selectedPlayer.assists === "number" &&
+            selectedPlayer.assists > 0
+              ? ` • 👟 ${selectedPlayer.assists} Asist`
+              : ""}
           </Text>
         </View>
       )}
@@ -124,6 +133,12 @@ export default function SoccerPitch({
 
           {lineup.startingXI.map((player) => {
             const isSelected = selectedPlayer?.id === player.id;
+            const hasGoals =
+              typeof player.goals === "number" && player.goals > 0;
+            const hasAssists =
+              typeof player.assists === "number" && player.assists > 0;
+            const hasBadges = hasGoals || hasAssists;
+
             return (
               <TouchableOpacity
                 key={player.id}
@@ -137,6 +152,36 @@ export default function SoccerPitch({
                   },
                 ]}
               >
+                {/* Gol (Top) ve Asist (Krampon) Rozetleri */}
+                {hasBadges ? (
+                  <View style={styles.eventBadgesRow}>
+                    {hasGoals ? (
+                      <View style={styles.goalBadge}>
+                        <Text style={styles.badgeEmoji}>⚽</Text>
+                        {player.goals! > 1 ? (
+                          <Text style={styles.badgeCountText}>
+                            {player.goals}
+                          </Text>
+                        ) : null}
+                      </View>
+                    ) : null}
+                    {hasAssists ? (
+                      <View style={styles.assistBadge}>
+                        <MaterialCommunityIcons
+                          name="shoe-cleat"
+                          size={11}
+                          color="#072146"
+                        />
+                        {player.assists! > 1 ? (
+                          <Text style={styles.badgeCountText}>
+                            {player.assists}
+                          </Text>
+                        ) : null}
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
+
                 <View
                   style={[
                     styles.playerCircle,
@@ -444,5 +489,56 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: "bold",
     textAlign: "center",
+  },
+  eventBadgesRow: {
+    position: "absolute",
+    top: -14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    zIndex: 10,
+  },
+  goalBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 1.5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.35,
+    shadowRadius: 2,
+    elevation: 4,
+    borderWidth: 0.5,
+    borderColor: "#DDD",
+  },
+  assistBadge: {
+    backgroundColor: "#FFD700",
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 1.5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.35,
+    shadowRadius: 2,
+    elevation: 4,
+    borderWidth: 0.5,
+    borderColor: "#E6C200",
+  },
+  badgeEmoji: {
+    fontSize: 9,
+    lineHeight: 11,
+  },
+  badgeCountText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#072146",
+    lineHeight: 11,
   },
 });

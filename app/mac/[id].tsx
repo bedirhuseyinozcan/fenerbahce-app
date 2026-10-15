@@ -4,6 +4,7 @@ import Colors from "@/constants/Colors";
 import { getMatchDetail } from "@/services/matchDetailService";
 import { MatchDetailData, MatchStat } from "@/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -61,7 +62,15 @@ export default function MatchDetailScreen() {
     );
   }
 
-  const isFinished = match.homeScore !== null && match.awayScore !== null;
+  const isFinished =
+    match.status === "finished" ||
+    (match.homeScore !== null &&
+      match.homeScore !== undefined &&
+      match.homeScore !== "" &&
+      match.awayScore !== null &&
+      match.awayScore !== undefined &&
+      match.awayScore !== "");
+  const isLive = match.status === "live";
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -129,6 +138,19 @@ export default function MatchDetailScreen() {
                 </Text>
                 <View style={styles.statusPill}>
                   <Text style={styles.statusPillText}>MAÇ SONUCU</Text>
+                </View>
+              </View>
+            ) : isLive ? (
+              <View style={styles.scoreBox}>
+                <Text style={styles.scoreText}>
+                  {match.homeScore || "0"} - {match.awayScore || "0"}
+                </Text>
+                <View
+                  style={[styles.statusPill, { backgroundColor: "#E53935" }]}
+                >
+                  <Text style={[styles.statusPillText, { color: "#FFFFFF" }]}>
+                    CANLI
+                  </Text>
                 </View>
               </View>
             ) : (
@@ -350,7 +372,7 @@ export default function MatchDetailScreen() {
                             <Text
                               style={[
                                 styles.eventPlayer,
-                                { color: theme.text },
+                                { color: theme.text, textAlign: "right" },
                               ]}
                             >
                               {event.player}
@@ -359,7 +381,10 @@ export default function MatchDetailScreen() {
                               <Text
                                 style={[
                                   styles.eventDetail,
-                                  { color: theme.secondaryText },
+                                  {
+                                    color: theme.secondaryText,
+                                    textAlign: "right",
+                                  },
                                 ]}
                               >
                                 {event.detail}
@@ -438,7 +463,7 @@ export default function MatchDetailScreen() {
                             <Text
                               style={[
                                 styles.eventPlayer,
-                                { color: theme.text },
+                                { color: theme.text, textAlign: "left" },
                               ]}
                             >
                               {event.player}
@@ -447,7 +472,10 @@ export default function MatchDetailScreen() {
                               <Text
                                 style={[
                                   styles.eventDetail,
-                                  { color: theme.secondaryText },
+                                  {
+                                    color: theme.secondaryText,
+                                    textAlign: "left",
+                                  },
                                 ]}
                               >
                                 {event.detail}
@@ -582,14 +610,54 @@ export default function MatchDetailScreen() {
                     >
                       {sub.name}
                     </Text>
-                    <Text
-                      style={[
-                        styles.subPosText,
-                        { color: theme.secondaryText },
-                      ]}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
                     >
-                      {sub.position}
-                    </Text>
+                      {typeof sub.goals === "number" && sub.goals > 0 ? (
+                        <View style={styles.subEventBadge}>
+                          <Text style={{ fontSize: 10 }}>
+                            ⚽{sub.goals > 1 ? ` ${sub.goals}` : ""}
+                          </Text>
+                        </View>
+                      ) : null}
+                      {typeof sub.assists === "number" && sub.assists > 0 ? (
+                        <View
+                          style={[
+                            styles.subEventBadge,
+                            { backgroundColor: "#FFD700" },
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            name="shoe-cleat"
+                            size={11}
+                            color="#072146"
+                          />
+                          {sub.assists > 1 ? (
+                            <Text
+                              style={{
+                                fontSize: 9,
+                                fontWeight: "800",
+                                color: "#072146",
+                              }}
+                            >
+                              {sub.assists}
+                            </Text>
+                          ) : null}
+                        </View>
+                      ) : null}
+                      <Text
+                        style={[
+                          styles.subPosText,
+                          { color: theme.secondaryText },
+                        ]}
+                      >
+                        {sub.position}
+                      </Text>
+                    </View>
                   </View>
                 ))}
               </View>
@@ -1034,6 +1102,15 @@ const styles = StyleSheet.create({
   subPosText: {
     fontSize: 12,
     fontWeight: "600",
+  },
+  subEventBadge: {
+    backgroundColor: "rgba(0, 0, 0, 0.06)",
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
   },
   statsHeaderRow: {
     flexDirection: "row",

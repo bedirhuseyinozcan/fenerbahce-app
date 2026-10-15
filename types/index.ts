@@ -69,6 +69,10 @@ export interface Player {
   name: string;
   position: string;
   gridPosition: { x: number; y: number };
+  goals?: number;
+  assists?: number;
+  yellowCards?: number;
+  redCards?: number;
 }
 
 export interface LineupSubstitute {
@@ -76,6 +80,10 @@ export interface LineupSubstitute {
   number: number;
   name: string;
   position: string;
+  goals?: number;
+  assists?: number;
+  yellowCards?: number;
+  redCards?: number;
 }
 
 export interface Lineup {
