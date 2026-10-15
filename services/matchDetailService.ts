@@ -1,4 +1,7 @@
-import { fetchFixtures } from "@/services/fixtureService";
+import {
+  fallbackCuratedFixtures,
+  fetchFixtures,
+} from "@/services/fixtureService";
 import {
   EventType,
   Lineup,
@@ -9,48 +12,273 @@ import {
 } from "@/types";
 
 function getPitchCoordinates(
-  formationPlace?: number,
+  formationPlace?: number | string,
   posName?: string,
+  posAbbr?: string,
+  formation?: string,
 ): { x: number; y: number } {
-  if (formationPlace && formationPlace >= 1 && formationPlace <= 11) {
-    switch (formationPlace) {
-      case 1:
-        return { x: 50, y: 88 };
-      case 2:
-        return { x: 86, y: 68 };
-      case 3:
-        return { x: 14, y: 68 };
-      case 4:
-        return { x: 35, y: 52 };
-      case 5:
-        return { x: 62, y: 72 };
-      case 6:
-        return { x: 38, y: 72 };
-      case 7:
-        return { x: 84, y: 32 };
-      case 8:
-        return { x: 65, y: 52 };
-      case 9:
-        return { x: 50, y: 14 };
-      case 10:
-        return { x: 50, y: 32 };
-      case 11:
-        return { x: 16, y: 32 };
+  const pNum =
+    formationPlace !== undefined && formationPlace !== null
+      ? parseInt(String(formationPlace), 10)
+      : NaN;
+
+  if (!isNaN(pNum) && pNum >= 1 && pNum <= 11) {
+    if (formation === "4-1-4-1") {
+      switch (pNum) {
+        case 1:
+          return { x: 50, y: 88 };
+        case 2:
+          return { x: 86, y: 70 };
+        case 5:
+          return { x: 62, y: 72 };
+        case 6:
+          return { x: 38, y: 72 };
+        case 3:
+          return { x: 14, y: 70 };
+        case 4:
+          return { x: 50, y: 55 };
+        case 8:
+          return { x: 62, y: 38 };
+        case 10:
+          return { x: 38, y: 38 };
+        case 7:
+          return { x: 84, y: 35 };
+        case 11:
+          return { x: 16, y: 35 };
+        case 9:
+          return { x: 50, y: 15 };
+      }
+    } else if (formation === "4-3-3") {
+      switch (pNum) {
+        case 1:
+          return { x: 50, y: 88 };
+        case 2:
+          return { x: 86, y: 70 };
+        case 5:
+          return { x: 62, y: 72 };
+        case 6:
+          return { x: 38, y: 72 };
+        case 3:
+          return { x: 14, y: 70 };
+        case 4:
+          return { x: 50, y: 54 };
+        case 7:
+          return { x: 68, y: 44 };
+        case 8:
+          return { x: 32, y: 44 };
+        case 10:
+          return { x: 82, y: 22 };
+        case 11:
+          return { x: 18, y: 22 };
+        case 9:
+          return { x: 50, y: 15 };
+      }
+    } else if (formation === "4-4-2") {
+      switch (pNum) {
+        case 1:
+          return { x: 50, y: 88 };
+        case 2:
+          return { x: 86, y: 70 };
+        case 5:
+          return { x: 62, y: 72 };
+        case 6:
+          return { x: 38, y: 72 };
+        case 3:
+          return { x: 14, y: 70 };
+        case 7:
+          return { x: 84, y: 46 };
+        case 8:
+          return { x: 62, y: 48 };
+        case 4:
+          return { x: 38, y: 48 };
+        case 11:
+          return { x: 16, y: 46 };
+        case 10:
+          return { x: 64, y: 16 };
+        case 9:
+          return { x: 36, y: 16 };
+      }
+    } else if (formation === "3-5-2") {
+      switch (pNum) {
+        case 1:
+          return { x: 50, y: 88 };
+        case 2:
+          return { x: 74, y: 72 };
+        case 5:
+          return { x: 50, y: 74 };
+        case 6:
+          return { x: 26, y: 72 };
+        case 7:
+          return { x: 86, y: 46 };
+        case 8:
+          return { x: 64, y: 50 };
+        case 4:
+          return { x: 50, y: 56 };
+        case 10:
+          return { x: 36, y: 50 };
+        case 3:
+          return { x: 14, y: 46 };
+        case 11:
+          return { x: 64, y: 16 };
+        case 9:
+          return { x: 36, y: 16 };
+      }
+    } else {
+      // 4-2-3-1 & standard
+      switch (pNum) {
+        case 1:
+          return { x: 50, y: 88 };
+        case 2:
+          return { x: 86, y: 70 };
+        case 5:
+          return { x: 62, y: 72 };
+        case 6:
+          return { x: 38, y: 72 };
+        case 3:
+          return { x: 14, y: 70 };
+        case 4:
+          return { x: 35, y: 53 };
+        case 8:
+          return { x: 65, y: 53 };
+        case 7:
+          return { x: 84, y: 33 };
+        case 10:
+          return { x: 50, y: 33 };
+        case 11:
+          return { x: 16, y: 33 };
+        case 9:
+          return { x: 50, y: 15 };
+      }
     }
   }
 
-  const p = (posName || "").toLowerCase();
-  if (p.includes("goal")) return { x: 50, y: 88 };
-  if (p.includes("right back")) return { x: 86, y: 68 };
-  if (p.includes("left back")) return { x: 14, y: 68 };
-  if (p.includes("center back") || p.includes("defender"))
+  const a = (posAbbr || "").toUpperCase().trim();
+  const p = (posName || "").toLowerCase().trim();
+
+  if (a === "G" || a === "GK" || p.includes("goal")) return { x: 50, y: 88 };
+
+  if (a === "RB" || p.includes("right back")) return { x: 86, y: 70 };
+  if (a === "LB" || p.includes("left back")) return { x: 14, y: 70 };
+  if (a === "RWB" || p.includes("right wing back")) return { x: 88, y: 62 };
+  if (a === "LWB" || p.includes("left wing back")) return { x: 12, y: 62 };
+  if (
+    a === "CD-R" ||
+    a === "CB-R" ||
+    a === "RCB" ||
+    p.includes("center right defender")
+  )
+    return { x: 62, y: 72 };
+  if (
+    a === "CD-L" ||
+    a === "CB-L" ||
+    a === "LCB" ||
+    p.includes("center left defender")
+  )
+    return { x: 38, y: 72 };
+  if (a === "CD" || a === "CB" || p.includes("center back"))
     return { x: 50, y: 72 };
-  if (p.includes("defensive")) return { x: 50, y: 55 };
-  if (p.includes("midfield")) return { x: 50, y: 45 };
-  if (p.includes("winger") || p.includes("right")) return { x: 82, y: 32 };
-  if (p.includes("left")) return { x: 18, y: 32 };
-  if (p.includes("forward") || p.includes("striker")) return { x: 50, y: 16 };
+  if (p.includes("defender") || p.includes("back")) return { x: 50, y: 72 };
+
+  if (a === "DM-R" || a === "RDM") return { x: 65, y: 54 };
+  if (a === "DM-L" || a === "LDM") return { x: 35, y: 54 };
+  if (a === "DM" || a === "CDM" || p.includes("defensive mid"))
+    return { x: 50, y: 55 };
+  if (a === "AM-R" || a === "RAM" || p.includes("attacking midfielder right"))
+    return { x: 82, y: 33 };
+  if (a === "AM-L" || a === "LAM" || p.includes("attacking midfielder left"))
+    return { x: 18, y: 33 };
+  if (a === "AM" || a === "CAM" || p.includes("attacking mid"))
+    return { x: 50, y: 33 };
+  if (a === "CM-R" || a === "RCM" || p.includes("center right mid"))
+    return { x: 64, y: 44 };
+  if (a === "CM-L" || a === "LCM" || p.includes("center left mid"))
+    return { x: 36, y: 44 };
+  if (a === "RM" || p.includes("right mid")) return { x: 84, y: 40 };
+  if (a === "LM" || p.includes("left mid")) return { x: 16, y: 40 };
+  if (a === "CM" || a === "M" || p.includes("midfield"))
+    return { x: 50, y: 46 };
+
+  if (
+    a === "RW" ||
+    a === "RF" ||
+    p.includes("right wing") ||
+    p.includes("right forward")
+  )
+    return { x: 82, y: 20 };
+  if (
+    a === "LW" ||
+    a === "LF" ||
+    p.includes("left wing") ||
+    p.includes("left forward")
+  )
+    return { x: 18, y: 20 };
+  if (
+    a === "ST" ||
+    a === "CF" ||
+    a === "F" ||
+    p.includes("striker") ||
+    p.includes("forward")
+  )
+    return { x: 50, y: 15 };
+
   return { x: 50, y: 50 };
+}
+
+function resolveLineupCollisions(players: Player[]): Player[] {
+  if (players.length <= 1) return players;
+
+  const spreadRow = (row: Player[], defaultY: number) => {
+    if (row.length === 0) return;
+    const count = row.length;
+    const hasOverlap =
+      row.length > 1 &&
+      row.some((p1, idx1) =>
+        row.some(
+          (p2, idx2) =>
+            idx1 !== idx2 &&
+            Math.abs(p1.gridPosition.x - p2.gridPosition.x) < 8 &&
+            Math.abs(p1.gridPosition.y - p2.gridPosition.y) < 8,
+        ),
+      );
+
+    if (hasOverlap || row.every((p) => p.gridPosition.x === 50)) {
+      const sorted = [...row].sort(
+        (a, b) => a.gridPosition.x - b.gridPosition.x,
+      );
+      sorted.forEach((p, i) => {
+        const x = count === 1 ? 50 : Math.round(15 + (i * 70) / (count - 1));
+        p.gridPosition = {
+          x,
+          y: p.gridPosition.y || defaultY,
+        };
+      });
+    }
+  };
+
+  const gks = players.filter((p) => p.gridPosition.y >= 82);
+  const dfs = players.filter(
+    (p) => p.gridPosition.y >= 60 && p.gridPosition.y < 82,
+  );
+  const mfs = players.filter(
+    (p) => p.gridPosition.y >= 26 && p.gridPosition.y < 60,
+  );
+  const fws = players.filter((p) => p.gridPosition.y < 26);
+
+  spreadRow(gks, 88);
+  spreadRow(dfs, 71);
+
+  const dms = mfs.filter((p) => p.gridPosition.y >= 45);
+  const ams = mfs.filter((p) => p.gridPosition.y < 45);
+  if (dms.length > 0 && ams.length > 0) {
+    spreadRow(dms, 53);
+    spreadRow(ams, 33);
+  } else {
+    spreadRow(mfs, 46);
+  }
+
+  spreadRow(fws, 16);
+
+  return players;
 }
 
 function mapPositionAbbr(pos: string = ""): string {
@@ -484,6 +712,14 @@ function generateOpponentLineup(branch: string, name: string): Lineup {
 export const getMatchDetail = async (
   matchId: string,
 ): Promise<MatchDetailData> => {
+  let cachedMatch: any = null;
+  try {
+    const fixtures = await fetchFixtures();
+    cachedMatch = fixtures.find((f) => f.id === matchId) || null;
+  } catch (err) {
+    console.warn("Cached fixture lookup error in getMatchDetail:", err);
+  }
+
   try {
     if (/^\d+$/.test(matchId)) {
       try {
@@ -506,12 +742,16 @@ export const getMatchDetail = async (
             const awayComp = comp.competitors?.find(
               (c: any) => c.homeAway === "away",
             );
-            const isFBHome = homeComp?.team?.displayName
-              ?.toLowerCase()
-              .includes("fenerbah");
-            const isFBAway = awayComp?.team?.displayName
-              ?.toLowerCase()
-              .includes("fenerbah");
+            const isFBHome =
+              homeComp?.team?.displayName?.toLowerCase().includes("fenerbah") ||
+              (cachedMatch
+                ? cachedMatch.homeTeam.toLowerCase().includes("fenerbah")
+                : false);
+            const isFBAway =
+              awayComp?.team?.displayName?.toLowerCase().includes("fenerbah") ||
+              (cachedMatch
+                ? cachedMatch.awayTeam.toLowerCase().includes("fenerbah")
+                : false);
             const state = comp.status?.type?.state;
             const status: "upcoming" | "live" | "finished" =
               comp.status?.type?.completed || state === "post"
@@ -553,7 +793,7 @@ export const getMatchDetail = async (
                 );
                 const subs = rosterData.roster.filter((p: any) => !p.starter);
 
-                const startingXI: Player[] = starters.map(
+                let startingXI: Player[] = starters.map(
                   (p: any, idx: number) => ({
                     id: String(p.athlete?.id || `st-${idx}`),
                     number: parseInt(p.jersey, 10) || idx + 1,
@@ -565,9 +805,13 @@ export const getMatchDetail = async (
                     gridPosition: getPitchCoordinates(
                       p.formationPlace,
                       p.position?.displayName,
+                      p.position?.abbreviation,
+                      rosterData.formation,
                     ),
                   }),
                 );
+
+                startingXI = resolveLineupCollisions(startingXI);
 
                 const substitutes = subs.map((p: any, idx: number) => ({
                   id: String(p.athlete?.id || `sub-${idx}`),
@@ -585,11 +829,16 @@ export const getMatchDetail = async (
                   startingXI:
                     startingXI.length > 0
                       ? startingXI
-                      : fallbackFootballLineup.startingXI,
+                      : isTeamFB
+                        ? fallbackFootballLineup.startingXI
+                        : generateOpponentLineup("Futbol", teamName).startingXI,
                   substitutes:
                     substitutes.length > 0
                       ? substitutes
-                      : fallbackFootballLineup.substitutes,
+                      : isTeamFB
+                        ? fallbackFootballLineup.substitutes
+                        : generateOpponentLineup("Futbol", teamName)
+                            .substitutes,
                 };
               }
 
@@ -598,18 +847,42 @@ export const getMatchDetail = async (
                 : generateOpponentLineup("Futbol", teamName);
             };
 
+            const homeTeamName = isFBHome
+              ? "Fenerbahçe"
+              : homeComp?.team?.displayName ||
+                cachedMatch?.homeTeam ||
+                "Ev Sahibi";
+            const awayTeamName = isFBAway
+              ? "Fenerbahçe"
+              : awayComp?.team?.displayName ||
+                cachedMatch?.awayTeam ||
+                "Deplasman";
+
+            const homeLogo = isFBHome
+              ? "fener.png"
+              : homeComp?.team?.logos?.[0]?.href ||
+                homeComp?.team?.logo ||
+                cachedMatch?.homeLogo ||
+                "logos/superlig";
+
+            const awayLogo = isFBAway
+              ? "fener.png"
+              : awayComp?.team?.logos?.[0]?.href ||
+                awayComp?.team?.logo ||
+                cachedMatch?.awayLogo ||
+                "logos/superlig";
+
             const homeLineup = mapLineupFromRoster(
               homeRoster,
               isFBHome,
-              homeComp?.team?.displayName,
+              homeTeamName,
             );
             const awayLineup = mapLineupFromRoster(
               awayRoster,
               isFBAway,
-              awayComp?.team?.displayName,
+              awayTeamName,
             );
 
-            // Canlı Maç Olayları (keyEvents)
             const events: MatchEvent[] = [];
             if (Array.isArray(d.keyEvents)) {
               d.keyEvents.forEach((k: any, idx: number) => {
@@ -681,11 +954,11 @@ export const getMatchDetail = async (
               branch: "Futbol",
               competition: comp.notes?.[0]?.headline || "Süper Lig",
               round: comp.round?.displayName || "Lig Maçı",
-              homeTeam: isFBHome ? "Fenerbahçe" : homeComp?.team?.displayName,
-              homeLogo: isFBHome ? "fener.png" : homeComp?.team?.logo,
+              homeTeam: homeTeamName,
+              homeLogo,
               homeScore: homeComp?.score?.displayValue ?? null,
-              awayTeam: isFBAway ? "Fenerbahçe" : awayComp?.team?.displayName,
-              awayLogo: isFBAway ? "fener.png" : awayComp?.team?.logo,
+              awayTeam: awayTeamName,
+              awayLogo,
               awayScore: awayComp?.score?.displayValue ?? null,
               date: dateStr,
               time: timeStr !== "Invalid Date" ? timeStr : "20:00",
@@ -742,7 +1015,12 @@ export const getMatchDetail = async (
           const euroData = await euroRes.json();
           const game = euroData.data?.find((g: any) => g.gameCode === gameCode);
           if (game) {
-            const isFBLocal = game.local?.club?.code === "ULK";
+            const isFBLocal =
+              game.local?.club?.code === "ULK" ||
+              game.local?.club?.name?.toLowerCase().includes("fenerbah") ||
+              (cachedMatch
+                ? cachedMatch.homeTeam.toLowerCase().includes("fenerbah")
+                : false);
             const dateObj = new Date(game.date);
 
             const qScores: string[] = [];
@@ -759,20 +1037,35 @@ export const getMatchDetail = async (
                 qScores.push(`4.Ç: ${p.partials4 || 0}-${rp.partials4 || 0}`);
             }
 
+            const homeTeam = isFBLocal
+              ? "Fenerbahçe Beko"
+              : game.local?.club?.name || cachedMatch?.homeTeam || "Ev Sahibi";
+            const awayTeam = !isFBLocal
+              ? "Fenerbahçe Beko"
+              : game.road?.club?.name || cachedMatch?.awayTeam || "Deplasman";
+
+            const homeLogo = isFBLocal
+              ? "fener.png"
+              : game.local?.club?.images?.crest ||
+                cachedMatch?.homeLogo ||
+                "logos/euroleague";
+
+            const awayLogo = !isFBLocal
+              ? "fener.png"
+              : game.road?.club?.images?.crest ||
+                cachedMatch?.awayLogo ||
+                "logos/euroleague";
+
             return {
               id: matchId,
               branch: "Basketbol",
               competition: "EuroLeague",
               round: game.roundName || `Round ${game.round}`,
-              homeTeam: isFBLocal ? "Fenerbahçe Beko" : game.local?.club?.name,
-              homeLogo: isFBLocal
-                ? "fener.png"
-                : game.local?.club?.images?.crest,
+              homeTeam,
+              homeLogo,
               homeScore: game.played ? String(game.local?.score) : null,
-              awayTeam: !isFBLocal ? "Fenerbahçe Beko" : game.road?.club?.name,
-              awayLogo: !isFBLocal
-                ? "fener.png"
-                : game.road?.club?.images?.crest,
+              awayTeam,
+              awayLogo,
               awayScore: game.played ? String(game.road?.score) : null,
               date: dateObj.toLocaleDateString("tr-TR", {
                 day: "numeric",
@@ -828,9 +1121,9 @@ export const getMatchDetail = async (
                 : [],
               homeLineup: isFBLocal
                 ? basketballFBLineup
-                : generateOpponentLineup("Basketbol", game.local?.club?.name),
+                : generateOpponentLineup("Basketbol", homeTeam),
               awayLineup: isFBLocal
-                ? generateOpponentLineup("Basketbol", game.road?.club?.name)
+                ? generateOpponentLineup("Basketbol", awayTeam)
                 : basketballFBLineup,
               stats: [
                 {
@@ -873,8 +1166,11 @@ export const getMatchDetail = async (
     }
 
     const fixtures = await fetchFixtures();
-    const match = fixtures.find((f) => f.id === matchId) || fixtures[0];
-    const isFbHome = match.homeTeam.includes("Fenerbah");
+    const match =
+      cachedMatch ||
+      fixtures.find((f) => f.id === matchId) ||
+      fallbackCuratedFixtures[0];
+    const isFbHome = match.homeTeam.toLowerCase().includes("fenerbah");
     const isFinished =
       match.homeScore !== null && match.homeScore !== undefined;
 
@@ -970,24 +1266,30 @@ export const getMatchDetail = async (
     };
   } catch (error) {
     console.error("Match detail fetch error:", error);
+    const fbMatch = cachedMatch || fallbackCuratedFixtures[0];
+    const isHomeFb = fbMatch.homeTeam.toLowerCase().includes("fenerbah");
     return {
       id: matchId,
-      branch: "Futbol",
-      competition: "Süper Lig",
-      round: "Lig Maçı",
-      homeTeam: "Fenerbahçe",
-      homeLogo: "fener.png",
-      homeScore: "3",
-      awayTeam: "Rakip",
-      awayLogo: "fener.png",
-      awayScore: "0",
-      date: "2026-2027",
-      time: "20:00",
-      stadium: "Ülker Stadyumu",
-      status: "finished",
+      branch: fbMatch.branch,
+      competition: fbMatch.competition,
+      round: fbMatch.round,
+      homeTeam: fbMatch.homeTeam,
+      homeLogo: fbMatch.homeLogo,
+      homeScore: fbMatch.homeScore,
+      awayTeam: fbMatch.awayTeam,
+      awayLogo: fbMatch.awayLogo,
+      awayScore: fbMatch.awayScore,
+      date: fbMatch.date,
+      time: fbMatch.time,
+      stadium: fbMatch.stadium,
+      status: fbMatch.homeScore !== null ? "finished" : "upcoming",
       events: [],
-      homeLineup: fallbackFootballLineup,
-      awayLineup: generateOpponentLineup("Futbol", "Rakip"),
+      homeLineup: isHomeFb
+        ? fallbackFootballLineup
+        : generateOpponentLineup(fbMatch.branch, fbMatch.homeTeam),
+      awayLineup: isHomeFb
+        ? generateOpponentLineup(fbMatch.branch, fbMatch.awayTeam)
+        : fallbackFootballLineup,
       stats: [],
     };
   }

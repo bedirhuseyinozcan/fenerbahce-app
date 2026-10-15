@@ -106,7 +106,12 @@ export default function MatchDetailScreen() {
           {/* Ev Sahibi */}
           <View style={styles.teamColumn}>
             <CloudinaryImage
-              publicId={match.homeLogo || "fener.png"}
+              publicId={
+                match.homeLogo ||
+                (match.homeTeam.toLowerCase().includes("fenerbah")
+                  ? "fener.png"
+                  : "logos/superlig")
+              }
               style={styles.teamLogo}
               contentFit="contain"
             />
@@ -152,7 +157,12 @@ export default function MatchDetailScreen() {
           {/* Deplasman */}
           <View style={styles.teamColumn}>
             <CloudinaryImage
-              publicId={match.awayLogo || "logos/superlig"}
+              publicId={
+                match.awayLogo ||
+                (match.awayTeam.toLowerCase().includes("fenerbah")
+                  ? "fener.png"
+                  : "logos/superlig")
+              }
               style={styles.teamLogo}
               contentFit="contain"
             />
@@ -541,8 +551,8 @@ export default function MatchDetailScreen() {
               }
               isFenerbahce={
                 selectedTeamLineup === "home"
-                  ? match.homeTeam.includes("Fenerbah")
-                  : match.awayTeam.includes("Fenerbah")
+                  ? match.homeTeam.toLowerCase().includes("fenerbah")
+                  : match.awayTeam.toLowerCase().includes("fenerbah")
               }
               branch={match.branch}
             />
