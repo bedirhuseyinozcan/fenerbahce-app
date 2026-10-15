@@ -2,11 +2,10 @@ import CloudinaryImage from "@/components/CloudinaryImage";
 import SoccerPitch from "@/components/SoccerPitch";
 import Colors from "@/constants/Colors";
 import { getMatchDetail } from "@/services/matchDetailService";
-import { MatchDetailData, MatchEvent, MatchStat } from "@/types";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { MatchDetailData, MatchStat } from "@/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -34,7 +33,9 @@ export default function MatchDetailScreen() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("ozet");
   const [match, setMatch] = useState<MatchDetailData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedTeamLineup, setSelectedTeamLineup] = useState<"home" | "away">("home");
+  const [selectedTeamLineup, setSelectedTeamLineup] = useState<"home" | "away">(
+    "home",
+  );
 
   useEffect(() => {
     const loadMatch = async () => {
@@ -49,7 +50,9 @@ export default function MatchDetailScreen() {
 
   if (loading || !match) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+      <View
+        style={[styles.loadingContainer, { backgroundColor: theme.background }]}
+      >
         <ActivityIndicator size="large" color={Colors.brand.navy} />
         <Text style={[styles.loadingText, { color: theme.secondaryText }]}>
           Maç Merkezi Yükleniyor...
@@ -81,7 +84,11 @@ export default function MatchDetailScreen() {
             onPress={() => router.back()}
             activeOpacity={0.7}
           >
-            <Ionicons name="chevron-back" size={24} color={Colors.brand.yellow} />
+            <Ionicons
+              name="chevron-back"
+              size={24}
+              color={Colors.brand.yellow}
+            />
             <Text style={styles.backButtonText}>Geri</Text>
           </TouchableOpacity>
 
@@ -123,8 +130,18 @@ export default function MatchDetailScreen() {
               <View style={styles.scoreBox}>
                 <Text style={styles.timeText}>{match.time}</Text>
                 <Text style={styles.dateText}>{match.date}</Text>
-                <View style={[styles.statusPill, { backgroundColor: Colors.brand.yellow }]}>
-                  <Text style={[styles.statusPillText, { color: Colors.brand.navy }]}>
+                <View
+                  style={[
+                    styles.statusPill,
+                    { backgroundColor: Colors.brand.yellow },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.statusPillText,
+                      { color: Colors.brand.navy },
+                    ]}
+                  >
                     YAKLAŞAN MAÇ
                   </Text>
                 </View>
@@ -144,10 +161,23 @@ export default function MatchDetailScreen() {
             </Text>
           </View>
         </View>
+        {match.quarterScores && match.quarterScores.length > 0 && (
+          <View style={styles.quartersRow}>
+            {match.quarterScores.map((score, idx) => (
+              <View key={idx} style={styles.quarterBadge}>
+                <Text style={styles.quarterText}>{score}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Stadyum & Hakem Bilgisi */}
         <View style={styles.venueRow}>
-          <Ionicons name="location-sharp" size={13} color={Colors.brand.yellow} />
+          <Ionicons
+            name="location-sharp"
+            size={13}
+            color={Colors.brand.yellow}
+          />
           <Text style={styles.venueText} numberOfLines={1}>
             {match.stadium}
           </Text>
@@ -155,15 +185,31 @@ export default function MatchDetailScreen() {
       </View>
 
       {/* 2. SEGMENTED CONTROL TAB BAR */}
-      <View style={[styles.tabBar, { backgroundColor: theme.cardBackground, borderBottomColor: theme.placeholder }]}>
+      <View
+        style={[
+          styles.tabBar,
+          {
+            backgroundColor: theme.cardBackground,
+            borderBottomColor: theme.placeholder,
+          },
+        ]}
+      >
         <TouchableOpacity
-          style={[styles.tabButton, activeTab === "ozet" && styles.tabButtonActive]}
+          style={[
+            styles.tabButton,
+            activeTab === "ozet" && styles.tabButtonActive,
+          ]}
           onPress={() => setActiveTab("ozet")}
         >
           <Text
             style={[
               styles.tabText,
-              { color: activeTab === "ozet" ? Colors.brand.navy : theme.secondaryText },
+              {
+                color:
+                  activeTab === "ozet"
+                    ? Colors.brand.navy
+                    : theme.secondaryText,
+              },
               activeTab === "ozet" && styles.tabTextActive,
             ]}
           >
@@ -172,13 +218,21 @@ export default function MatchDetailScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabButton, activeTab === "kadrolar" && styles.tabButtonActive]}
+          style={[
+            styles.tabButton,
+            activeTab === "kadrolar" && styles.tabButtonActive,
+          ]}
           onPress={() => setActiveTab("kadrolar")}
         >
           <Text
             style={[
               styles.tabText,
-              { color: activeTab === "kadrolar" ? Colors.brand.navy : theme.secondaryText },
+              {
+                color:
+                  activeTab === "kadrolar"
+                    ? Colors.brand.navy
+                    : theme.secondaryText,
+              },
               activeTab === "kadrolar" && styles.tabTextActive,
             ]}
           >
@@ -187,13 +241,21 @@ export default function MatchDetailScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabButton, activeTab === "istatistikler" && styles.tabButtonActive]}
+          style={[
+            styles.tabButton,
+            activeTab === "istatistikler" && styles.tabButtonActive,
+          ]}
           onPress={() => setActiveTab("istatistikler")}
         >
           <Text
             style={[
               styles.tabText,
-              { color: activeTab === "istatistikler" ? Colors.brand.navy : theme.secondaryText },
+              {
+                color:
+                  activeTab === "istatistikler"
+                    ? Colors.brand.navy
+                    : theme.secondaryText,
+              },
               activeTab === "istatistikler" && styles.tabTextActive,
             ]}
           >
@@ -212,24 +274,61 @@ export default function MatchDetailScreen() {
         {activeTab === "ozet" && (
           <View style={styles.tabContentContainer}>
             {/* Hakem ve Maç Detay Kartı */}
-            <View style={[styles.infoCard, { backgroundColor: theme.cardBackground }]}>
+            <View
+              style={[
+                styles.infoCard,
+                { backgroundColor: theme.cardBackground },
+              ]}
+            >
               <View style={styles.infoRow}>
-                <Ionicons name="person-circle-outline" size={18} color={Colors.brand.navy} />
-                <Text style={[styles.infoLabel, { color: theme.secondaryText }]}>Başhakem:</Text>
-                <Text style={[styles.infoValue, { color: theme.text }]}>{match.referee || "Halil Umut Meler"}</Text>
+                <Ionicons
+                  name="person-circle-outline"
+                  size={18}
+                  color={Colors.brand.navy}
+                />
+                <Text
+                  style={[styles.infoLabel, { color: theme.secondaryText }]}
+                >
+                  Başhakem:
+                </Text>
+                <Text style={[styles.infoValue, { color: theme.text }]}>
+                  {match.referee || "Halil Umut Meler"}
+                </Text>
               </View>
-              <View style={[styles.infoDivider, { backgroundColor: theme.placeholder }]} />
+              <View
+                style={[
+                  styles.infoDivider,
+                  { backgroundColor: theme.placeholder },
+                ]}
+              />
               <View style={styles.infoRow}>
-                <Ionicons name="calendar-outline" size={18} color={Colors.brand.navy} />
-                <Text style={[styles.infoLabel, { color: theme.secondaryText }]}>Tarih & Saat:</Text>
-                <Text style={[styles.infoValue, { color: theme.text }]}>{match.date} • {match.time}</Text>
+                <Ionicons
+                  name="calendar-outline"
+                  size={18}
+                  color={Colors.brand.navy}
+                />
+                <Text
+                  style={[styles.infoLabel, { color: theme.secondaryText }]}
+                >
+                  Tarih & Saat:
+                </Text>
+                <Text style={[styles.infoValue, { color: theme.text }]}>
+                  {match.date} • {match.time}
+                </Text>
               </View>
             </View>
 
             {/* Olaylar Zaman Çizelgesi */}
-            <Text style={[styles.sectionHeading, { color: theme.text }]}>MAÇ OLAYLARI</Text>
+            <Text style={[styles.sectionHeading, { color: theme.text }]}>
+              MAÇ OLAYLARI
+            </Text>
             {match.events.length > 0 ? (
-              <View style={[styles.eventsCard, { backgroundColor: theme.cardBackground }]}>
+              <View
+                style={[
+                  styles.eventsCard,
+                  { backgroundColor: theme.cardBackground },
+                ]}
+              >
                 {match.events.map((event, index) => {
                   const isHome = event.team === "home";
                   return (
@@ -238,38 +337,111 @@ export default function MatchDetailScreen() {
                       <View style={styles.eventTeamSide}>
                         {isHome && (
                           <View style={styles.eventContentRightAlign}>
-                            <Text style={[styles.eventPlayer, { color: theme.text }]}>{event.player}</Text>
+                            <Text
+                              style={[
+                                styles.eventPlayer,
+                                { color: theme.text },
+                              ]}
+                            >
+                              {event.player}
+                            </Text>
                             {event.detail && (
-                              <Text style={[styles.eventDetail, { color: theme.secondaryText }]}>{event.detail}</Text>
+                              <Text
+                                style={[
+                                  styles.eventDetail,
+                                  { color: theme.secondaryText },
+                                ]}
+                              >
+                                {event.detail}
+                              </Text>
                             )}
                           </View>
                         )}
                       </View>
 
-                      {/* Orta: Dakika ve İkon */}
                       <View style={styles.eventCenter}>
                         <View style={styles.eventIconBadge}>
-                          {event.type === "goal" && <Text style={{ fontSize: 14 }}>⚽</Text>}
+                          {event.type === "goal" && (
+                            <Text style={{ fontSize: 14 }}>⚽</Text>
+                          )}
                           {event.type === "yellow-card" && (
-                            <View style={[styles.cardSquare, { backgroundColor: "#FFD600" }]} />
+                            <View
+                              style={[
+                                styles.cardSquare,
+                                { backgroundColor: "#FFD600" },
+                              ]}
+                            />
                           )}
                           {event.type === "red-card" && (
-                            <View style={[styles.cardSquare, { backgroundColor: "#D50000" }]} />
+                            <View
+                              style={[
+                                styles.cardSquare,
+                                { backgroundColor: "#D50000" },
+                              ]}
+                            />
                           )}
                           {event.type === "substitution" && (
-                            <Ionicons name="swap-horizontal" size={16} color="#00C853" />
+                            <Ionicons
+                              name="swap-horizontal"
+                              size={16}
+                              color="#00C853"
+                            />
+                          )}
+                          {event.type === "basket-3pt" && (
+                            <Text style={{ fontSize: 11, fontWeight: "bold" }}>
+                              🎯 3P
+                            </Text>
+                          )}
+                          {event.type === "basket-2pt" && (
+                            <Text style={{ fontSize: 11, fontWeight: "bold" }}>
+                              🏀 2P
+                            </Text>
+                          )}
+                          {event.type === "timeout" && (
+                            <Text style={{ fontSize: 13 }}>⏱️</Text>
+                          )}
+                          {event.type === "ace" && (
+                            <Text style={{ fontSize: 10, fontWeight: "bold" }}>
+                              ⚡ACE
+                            </Text>
+                          )}
+                          {event.type === "block" && (
+                            <Text style={{ fontSize: 10, fontWeight: "bold" }}>
+                              🧱BLK
+                            </Text>
+                          )}
+                          {event.type === "spike" && (
+                            <Text style={{ fontSize: 12 }}>💥</Text>
                           )}
                         </View>
-                        <Text style={styles.eventMinute}>{event.minute}'</Text>
+                        <Text style={styles.eventMinute}>
+                          {event.quarterOrSet
+                            ? event.quarterOrSet
+                            : `${event.minute}'`}
+                        </Text>
                       </View>
 
                       {/* Sağ Taraf (Deplasman Olayı) */}
                       <View style={styles.eventTeamSide}>
                         {!isHome && (
                           <View style={styles.eventContentLeftAlign}>
-                            <Text style={[styles.eventPlayer, { color: theme.text }]}>{event.player}</Text>
+                            <Text
+                              style={[
+                                styles.eventPlayer,
+                                { color: theme.text },
+                              ]}
+                            >
+                              {event.player}
+                            </Text>
                             {event.detail && (
-                              <Text style={[styles.eventDetail, { color: theme.secondaryText }]}>{event.detail}</Text>
+                              <Text
+                                style={[
+                                  styles.eventDetail,
+                                  { color: theme.secondaryText },
+                                ]}
+                              >
+                                {event.detail}
+                              </Text>
                             )}
                           </View>
                         )}
@@ -279,9 +451,20 @@ export default function MatchDetailScreen() {
                 })}
               </View>
             ) : (
-              <View style={[styles.emptyCard, { backgroundColor: theme.cardBackground }]}>
-                <Ionicons name="time-outline" size={32} color={theme.secondaryText} />
-                <Text style={[styles.emptyText, { color: theme.secondaryText }]}>
+              <View
+                style={[
+                  styles.emptyCard,
+                  { backgroundColor: theme.cardBackground },
+                ]}
+              >
+                <Ionicons
+                  name="time-outline"
+                  size={32}
+                  color={theme.secondaryText}
+                />
+                <Text
+                  style={[styles.emptyText, { color: theme.secondaryText }]}
+                >
                   Maç henüz başlamadığı için önemli an bulunmuyor.
                 </Text>
               </View>
@@ -308,7 +491,10 @@ export default function MatchDetailScreen() {
                   style={[
                     styles.teamToggleText,
                     {
-                      color: selectedTeamLineup === "home" ? Colors.brand.yellow : theme.secondaryText,
+                      color:
+                        selectedTeamLineup === "home"
+                          ? Colors.brand.yellow
+                          : theme.secondaryText,
                     },
                   ]}
                   numberOfLines={1}
@@ -331,7 +517,10 @@ export default function MatchDetailScreen() {
                   style={[
                     styles.teamToggleText,
                     {
-                      color: selectedTeamLineup === "away" ? Colors.brand.yellow : theme.secondaryText,
+                      color:
+                        selectedTeamLineup === "away"
+                          ? Colors.brand.yellow
+                          : theme.secondaryText,
                     },
                   ]}
                   numberOfLines={1}
@@ -341,20 +530,33 @@ export default function MatchDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Yeşil Taktik Saha Bileşeni */}
             <SoccerPitch
-              lineup={selectedTeamLineup === "home" ? match.homeLineup : match.awayLineup}
-              teamName={selectedTeamLineup === "home" ? match.homeTeam : match.awayTeam}
+              lineup={
+                selectedTeamLineup === "home"
+                  ? match.homeLineup
+                  : match.awayLineup
+              }
+              teamName={
+                selectedTeamLineup === "home" ? match.homeTeam : match.awayTeam
+              }
               isFenerbahce={
                 selectedTeamLineup === "home"
                   ? match.homeTeam.includes("Fenerbah")
                   : match.awayTeam.includes("Fenerbah")
               }
+              branch={match.branch}
             />
 
             {/* Yedek Kulübesi Listesi */}
-            <View style={[styles.subsCard, { backgroundColor: theme.cardBackground }]}>
-              <Text style={[styles.subsHeading, { color: theme.text }]}>YEDEKLER</Text>
+            <View
+              style={[
+                styles.subsCard,
+                { backgroundColor: theme.cardBackground },
+              ]}
+            >
+              <Text style={[styles.subsHeading, { color: theme.text }]}>
+                YEDEKLER
+              </Text>
               <View style={styles.subsGrid}>
                 {(selectedTeamLineup === "home"
                   ? match.homeLineup.substitutes
@@ -364,10 +566,18 @@ export default function MatchDetailScreen() {
                     <View style={styles.subNumberBadge}>
                       <Text style={styles.subNumberText}>{sub.number}</Text>
                     </View>
-                    <Text style={[styles.subNameText, { color: theme.text }]} numberOfLines={1}>
+                    <Text
+                      style={[styles.subNameText, { color: theme.text }]}
+                      numberOfLines={1}
+                    >
                       {sub.name}
                     </Text>
-                    <Text style={[styles.subPosText, { color: theme.secondaryText }]}>
+                    <Text
+                      style={[
+                        styles.subPosText,
+                        { color: theme.secondaryText },
+                      ]}
+                    >
                       {sub.position}
                     </Text>
                   </View>
@@ -381,27 +591,60 @@ export default function MatchDetailScreen() {
         {activeTab === "istatistikler" && (
           <View style={styles.tabContentContainer}>
             {/* Takım İsimleri Header */}
-            <View style={[styles.statsHeaderRow, { backgroundColor: theme.cardBackground }]}>
-              <Text style={[styles.statsTeamName, { color: Colors.brand.navy }]} numberOfLines={1}>
+            <View
+              style={[
+                styles.statsHeaderRow,
+                { backgroundColor: theme.cardBackground },
+              ]}
+            >
+              <Text
+                style={[styles.statsTeamName, { color: Colors.brand.navy }]}
+                numberOfLines={1}
+              >
                 {match.homeTeam}
               </Text>
-              <Text style={[styles.statsTitle, { color: theme.secondaryText }]}>İSTATİSTİK</Text>
-              <Text style={[styles.statsTeamName, { color: "#37474F", textAlign: "right" }]} numberOfLines={1}>
+              <Text style={[styles.statsTitle, { color: theme.secondaryText }]}>
+                İSTATİSTİK
+              </Text>
+              <Text
+                style={[
+                  styles.statsTeamName,
+                  { color: "#37474F", textAlign: "right" },
+                ]}
+                numberOfLines={1}
+              >
                 {match.awayTeam}
               </Text>
             </View>
 
             {/* İstatistik Barları */}
-            <View style={[styles.statsListCard, { backgroundColor: theme.cardBackground }]}>
+            <View
+              style={[
+                styles.statsListCard,
+                { backgroundColor: theme.cardBackground },
+              ]}
+            >
               {match.stats.map((stat: MatchStat, index: number) => (
                 <View key={index} style={styles.statRow}>
                   {/* Sayısal Değerler */}
                   <View style={styles.statValuesRow}>
-                    <Text style={[styles.statValueText, { color: Colors.brand.navy, fontWeight: "bold" }]}>
+                    <Text
+                      style={[
+                        styles.statValueText,
+                        { color: Colors.brand.navy, fontWeight: "bold" },
+                      ]}
+                    >
                       {stat.homeValue}
                     </Text>
-                    <Text style={[styles.statLabelText, { color: theme.text }]}>{stat.label}</Text>
-                    <Text style={[styles.statValueText, { color: "#455A64", fontWeight: "bold" }]}>
+                    <Text style={[styles.statLabelText, { color: theme.text }]}>
+                      {stat.label}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.statValueText,
+                        { color: "#455A64", fontWeight: "bold" },
+                      ]}
+                    >
                       {stat.awayValue}
                     </Text>
                   </View>
@@ -565,6 +808,25 @@ const styles = StyleSheet.create({
     color: "#ECEFF1",
     fontSize: 11,
     marginLeft: 4,
+  },
+  quartersRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+    marginVertical: 8,
+    paddingHorizontal: 16,
+    flexWrap: "wrap",
+  },
+  quarterBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  quarterText: {
+    color: Colors.brand.yellow,
+    fontSize: 11,
+    fontWeight: "bold",
   },
   tabBar: {
     flexDirection: "row",

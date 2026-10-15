@@ -43,7 +43,13 @@ export type EventType =
   | "yellow-card"
   | "red-card"
   | "substitution"
-  | "var";
+  | "var"
+  | "basket-3pt"
+  | "basket-2pt"
+  | "timeout"
+  | "ace"
+  | "block"
+  | "spike";
 
 export interface MatchEvent {
   id: string;
@@ -53,13 +59,14 @@ export interface MatchEvent {
   team: "home" | "away";
   player: string;
   detail?: string;
+  quarterOrSet?: string;
 }
 
 export interface Player {
   id: string;
   number: number;
   name: string;
-  position: "GK" | "DF" | "MF" | "FW";
+  position: string;
   gridPosition: { x: number; y: number };
 }
 
@@ -87,8 +94,21 @@ export interface MatchStat {
 export interface MatchDetailData extends MatchData {
   status: "upcoming" | "live" | "finished";
   referee?: string;
+  quarterScores?: string[];
   events: MatchEvent[];
   homeLineup: Lineup;
   awayLineup: Lineup;
   stats: MatchStat[];
 }
+
+export interface Athlete {
+  id: string;
+  name: string;
+  number: number;
+  position: string;
+  category: "Kaleci" | "Defans" | "Orta Saha" | "Forvet" | "Gard" | "Forvet/Pivot" | "Smaçör" | "Pasör" | "Orta Oyuncu" | "Libero";
+  country?: string;
+  branch: "Futbol" | "Basketbol" | "Voleybol";
+  image?: string;
+}
+

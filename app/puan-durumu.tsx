@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
-import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
 import { fetchSuperLigStandings } from '@/services/standingsService';
 import { TeamStanding } from '@/types';
 import Colors from '@/constants/Colors';
@@ -12,13 +12,23 @@ export default function PuanDurumuScreen() {
   const theme = Colors[colorScheme];
   const [standings, setStandings] = useState<TeamStanding[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadData = useCallback(async () => {
+    const data = await fetchSuperLigStandings();
+    setStandings(data);
+    setLoading(false);
+    setRefreshing(false);
+  }, []);
 
   useEffect(() => {
-    fetchSuperLigStandings().then(data => {
-      setStandings(data);
-      setLoading(false);
-    });
-  }, []);
+    loadData();
+  }, [loadData]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadData();
+  }, [loadData]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -43,6 +53,14 @@ export default function PuanDurumuScreen() {
             data={standings}
             keyExtractor={(item) => item.teamId}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={Colors.brand.navy}
+                colors={[Colors.brand.navy, Colors.brand.yellow]}
+              />
+            }
             renderItem={({ item }) => (
               <View style={[styles.row, item.teamName.includes('Fenerbahçe') && { backgroundColor: 'rgba(255, 237, 0, 0.15)' }]}>
                 <Text style={[styles.cellText, { flex: 0.5, fontWeight: 'bold', color: theme.text }]}>{item.rank}</Text>

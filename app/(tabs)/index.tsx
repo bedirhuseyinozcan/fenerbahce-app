@@ -6,7 +6,7 @@ import { fetchNews } from "@/services/newsService";
 import { fetchSuperLigStandings } from "@/services/standingsService";
 import { MatchData, NewsData, TeamStanding } from "@/types";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -51,7 +51,7 @@ export default function TabOneScreen() {
       const futureMatch = fixturesData.find(
         (m) => m.homeScore === null && m.awayScore === null,
       );
-      setNextMatch(futureMatch || null);
+      setNextMatch(futureMatch || fixturesData[0] || null);
 
       setNews(newsData.slice(0, 5));
       setStandings(standingsData.slice(0, 5));
@@ -150,6 +150,91 @@ export default function TabOneScreen() {
           )}
         </View>
       )}
+      <View style={styles.quickActionsContainer}>
+        <TouchableOpacity
+          style={[
+            styles.quickActionBtn,
+            { backgroundColor: theme.cardBackground },
+          ]}
+          onPress={() => router.push("/sporcular" as any)}
+          activeOpacity={0.8}
+        >
+          <View
+            style={[
+              styles.quickActionIconBox,
+              { backgroundColor: "rgba(7, 33, 70, 0.1)" },
+            ]}
+          >
+            <Text style={{ fontSize: 18 }}>👥</Text>
+          </View>
+          <Text style={[styles.quickActionText, { color: theme.text }]}>
+            Kadrolar
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.quickActionBtn,
+            { backgroundColor: theme.cardBackground },
+          ]}
+          onPress={() => router.push("/puan-durumu" as any)}
+          activeOpacity={0.8}
+        >
+          <View
+            style={[
+              styles.quickActionIconBox,
+              { backgroundColor: "rgba(255, 160, 0, 0.15)" },
+            ]}
+          >
+            <Text style={{ fontSize: 18 }}>🏆</Text>
+          </View>
+          <Text style={[styles.quickActionText, { color: theme.text }]}>
+            Puan Cetveli
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.quickActionBtn,
+            { backgroundColor: theme.cardBackground },
+          ]}
+          onPress={() => router.push("/haberler" as any)}
+          activeOpacity={0.8}
+        >
+          <View
+            style={[
+              styles.quickActionIconBox,
+              { backgroundColor: "rgba(30, 136, 229, 0.15)" },
+            ]}
+          >
+            <Text style={{ fontSize: 18 }}>📰</Text>
+          </View>
+          <Text style={[styles.quickActionText, { color: theme.text }]}>
+            Haberler
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.quickActionBtn,
+            { backgroundColor: theme.cardBackground },
+          ]}
+          onPress={() => router.push("/fikstur" as any)}
+          activeOpacity={0.8}
+        >
+          <View
+            style={[
+              styles.quickActionIconBox,
+              { backgroundColor: "rgba(67, 160, 71, 0.15)" },
+            ]}
+          >
+            <Text style={{ fontSize: 18 }}>📅</Text>
+          </View>
+          <Text style={[styles.quickActionText, { color: theme.text }]}>
+            Fikstür
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -442,6 +527,39 @@ export default function TabOneScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  quickActionsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    gap: 10,
+  },
+  quickActionBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  quickActionIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  quickActionText: {
+    fontSize: 11,
+    fontWeight: "600",
+    textAlign: "center",
   },
   heroContainer: {
     width: "100%",

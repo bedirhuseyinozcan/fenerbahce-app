@@ -13,6 +13,7 @@ interface SoccerPitchProps {
   lineup: Lineup;
   teamName: string;
   isFenerbahce?: boolean;
+  branch?: string;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -23,19 +24,31 @@ export default function SoccerPitch({
   lineup,
   teamName,
   isFenerbahce = true,
+  branch = "Futbol",
 }: SoccerPitchProps) {
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+
+  const isBasketball = branch === "Basketbol";
+  const isVolleyball = branch === "Voleybol";
 
   return (
     <View style={styles.wrapper}>
       <View style={styles.pitchHeader}>
         <View style={styles.formationBadge}>
           <Text style={styles.formationText}>
-            Formasyon: {lineup.formation}
+            {isBasketball
+              ? "İlk 5"
+              : isVolleyball
+                ? "İlk 6"
+                : `Formasyon: ${lineup.formation}`}
           </Text>
         </View>
-        <Text style={styles.coachText}>T.D.: {lineup.coach}</Text>
+        <Text style={styles.coachText}>
+          {isBasketball || isVolleyball ? "Baş Antrenör: " : "T.D.: "}
+          {lineup.coach}
+        </Text>
       </View>
+
       {selectedPlayer && (
         <View style={styles.selectedBanner}>
           <Text style={styles.selectedBannerText}>
@@ -44,31 +57,70 @@ export default function SoccerPitch({
           </Text>
         </View>
       )}
+
       <View style={styles.pitchContainer}>
-        {/* Çim Şeritleri */}
         <View style={styles.stripesContainer}>
           {[...Array(6)].map((_, i) => (
             <View
               key={i}
               style={[
                 styles.stripe,
-                { backgroundColor: i % 2 === 0 ? "#1b5e20" : "#226a27" },
+                {
+                  backgroundColor: isBasketball
+                    ? i % 2 === 0
+                      ? "#C1894D"
+                      : "#B47C42"
+                    : isVolleyball
+                      ? i % 2 === 0
+                        ? "#1E88E5"
+                        : "#1976D2"
+                      : i % 2 === 0
+                        ? "#1b5e20"
+                        : "#226a27",
+                },
               ]}
             />
           ))}
         </View>
+
         <View style={styles.pitchBorder}>
-          <View style={styles.topPenaltyBox} />
-          <View style={styles.topGoalBox} />
-          <View style={styles.topPenaltyArc} />
+          {!isBasketball && !isVolleyball && (
+            <>
+              <View style={styles.topPenaltyBox} />
+              <View style={styles.topGoalBox} />
+              <View style={styles.topPenaltyArc} />
+              <View style={styles.halfwayLine} />
+              <View style={styles.centerCircle} />
+              <View style={styles.centerSpot} />
+              <View style={styles.bottomPenaltyArc} />
+              <View style={styles.bottomPenaltyBox} />
+              <View style={styles.bottomGoalBox} />
+            </>
+          )}
 
-          <View style={styles.halfwayLine} />
-          <View style={styles.centerCircle} />
-          <View style={styles.centerSpot} />
+          {isBasketball && (
+            <>
+              <View style={styles.halfwayLine} />
+              <View style={styles.centerCircle} />
+              <View style={styles.bballTopKey} />
+              <View style={styles.bballTopArc} />
+              <View style={styles.bballBottomKey} />
+              <View style={styles.bballBottomArc} />
+            </>
+          )}
 
-          <View style={styles.bottomPenaltyArc} />
-          <View style={styles.bottomPenaltyBox} />
-          <View style={styles.bottomGoalBox} />
+          {isVolleyball && (
+            <>
+              <View
+                style={[
+                  styles.halfwayLine,
+                  { height: 3, backgroundColor: "#FFD54F" },
+                ]}
+              />
+              <View style={styles.vballAttackLineTop} />
+              <View style={styles.vballAttackLineBottom} />
+            </>
+          )}
 
           {lineup.startingXI.map((player) => {
             const isSelected = selectedPlayer?.id === player.id;
@@ -295,6 +347,66 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     borderWidth: 1.5,
     borderColor: "rgba(255, 255, 255, 0.65)",
+  },
+  bballTopKey: {
+    position: "absolute",
+    top: 0,
+    left: "32%",
+    right: "32%",
+    height: 80,
+    borderWidth: 1.5,
+    borderTopWidth: 0,
+    borderColor: "rgba(255, 255, 255, 0.65)",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+  },
+  bballTopArc: {
+    position: "absolute",
+    top: -20,
+    left: "12%",
+    right: "12%",
+    height: 140,
+    borderRadius: 80,
+    borderWidth: 1.5,
+    borderTopWidth: 0,
+    borderColor: "rgba(255, 255, 255, 0.65)",
+  },
+  bballBottomKey: {
+    position: "absolute",
+    bottom: 0,
+    left: "32%",
+    right: "32%",
+    height: 80,
+    borderWidth: 1.5,
+    borderBottomWidth: 0,
+    borderColor: "rgba(255, 255, 255, 0.65)",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+  },
+  bballBottomArc: {
+    position: "absolute",
+    bottom: -20,
+    left: "12%",
+    right: "12%",
+    height: 140,
+    borderRadius: 80,
+    borderWidth: 1.5,
+    borderBottomWidth: 0,
+    borderColor: "rgba(255, 255, 255, 0.65)",
+  },
+  vballAttackLineTop: {
+    position: "absolute",
+    top: "33%",
+    left: 0,
+    right: 0,
+    height: 1.5,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+  },
+  vballAttackLineBottom: {
+    position: "absolute",
+    bottom: "33%",
+    left: 0,
+    right: 0,
+    height: 1.5,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
   },
   playerWrapper: {
     position: "absolute",
