@@ -1,3 +1,5 @@
+export type MatchStatus = "upcoming" | "live" | "finished";
+
 export interface MatchData {
   id: string;
   branch: string;
@@ -13,6 +15,27 @@ export interface MatchData {
   time: string;
   stadium: string;
   rawDate?: string;
+  status?: MatchStatus;
+  liveClock?: string;
+  leagueSlug?: string;
+}
+
+export interface PredictionData {
+  matchId: string;
+  homeScore: number;
+  awayScore: number;
+  createdAt: string;
+}
+
+export interface HistoricalEvent {
+  id: string;
+  day: number;
+  month: number;
+  year: number;
+  title: string;
+  description: string;
+  category: "Şampiyonluk" | "Derbi Zaferi" | "Avrupa" | "Kulüp Tarihi";
+  score?: string;
 }
 
 export interface NewsData {
@@ -91,6 +114,7 @@ export interface Lineup {
   coach: string;
   startingXI: Player[];
   substitutes: LineupSubstitute[];
+  isConfirmed?: boolean;
 }
 
 export interface MatchStat {
@@ -110,14 +134,34 @@ export interface MatchDetailData extends MatchData {
   stats: MatchStat[];
 }
 
+export type AthleteBranch =
+  | "Futbol"
+  | "Basketbol"
+  | "Voleybol"
+  | "Kadın Basketbol"
+  | "Erkek Voleybol"
+  | "Kadın Futbol";
+
+export type AthleteCategory =
+  | "Kaleci"
+  | "Defans"
+  | "Orta Saha"
+  | "Forvet"
+  | "Gard"
+  | "Forvet/Pivot"
+  | "Smaçör"
+  | "Pasör"
+  | "Orta Oyuncu"
+  | "Libero";
+
 export interface Athlete {
   id: string;
   name: string;
   number: number;
   position: string;
-  category: "Kaleci" | "Defans" | "Orta Saha" | "Forvet" | "Gard" | "Forvet/Pivot" | "Smaçör" | "Pasör" | "Orta Oyuncu" | "Libero";
+  category: AthleteCategory;
   country?: string;
-  branch: "Futbol" | "Basketbol" | "Voleybol";
+  branch: AthleteBranch;
   image?: string;
 }
 

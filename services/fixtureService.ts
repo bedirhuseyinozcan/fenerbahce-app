@@ -1,405 +1,508 @@
-import { MatchData } from "@/types";
+import { MatchData, MatchStatus } from "@/types";
+import { safeFetch } from "@/utils/safeFetch";
 
-export const fallbackCuratedFixtures: MatchData[] = [
-  {
-    id: "fb-live-next-1",
-    branch: "Futbol",
-    competition: "Trendyol Süper Lig",
-    round: "9. Hafta",
-    homeTeam: "Fenerbahçe",
-    homeLogo: "fener.png",
-    homeScore: null,
-    awayTeam: "Corendon Alanyaspor",
-    awayLogo:
-      "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/18151.png",
-    awayScore: null,
-    date: "17 Ekim 2026, Cumartesi",
-    time: "19:00",
-    stadium: "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi",
-    rawDate: "2026-10-17T16:00:00Z",
-  },
-  {
-    id: "fb-live-next-2",
-    branch: "Futbol",
-    competition: "UEFA Şampiyonlar Ligi",
-    round: "Lig Aşaması",
-    homeTeam: "Fenerbahçe",
-    homeLogo: "fener.png",
-    homeScore: null,
-    awayTeam: "Slavia Prague",
-    awayLogo:
-      "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/455.png",
-    awayScore: null,
-    date: "20 Ekim 2026, Salı",
-    time: "19:45",
-    stadium: "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi",
-    rawDate: "2026-10-20T16:45:00Z",
-  },
-  {
-    id: "fb-live-next-3",
-    branch: "Futbol",
-    competition: "Trendyol Süper Lig",
-    round: "10. Hafta (Derbi)",
-    homeTeam: "Galatasaray",
-    homeLogo:
-      "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/437.png",
-    homeScore: null,
-    awayTeam: "Fenerbahçe",
-    awayLogo: "fener.png",
-    awayScore: null,
-    date: "26 Ekim 2026, Pazartesi",
-    time: "20:00",
-    stadium: "RAMS Park",
-    rawDate: "2026-10-26T17:00:00Z",
-  },
-  {
-    id: "el-live-1",
-    branch: "Basketbol",
-    competition: "EuroLeague",
-    round: "Round 2",
-    homeTeam: "Fenerbahçe Beko",
-    homeLogo: "fener.png",
-    homeScore: null,
-    awayTeam: "Panathinaikos AKTOR",
-    awayLogo:
-      "https://media-cdn.incrowdsports.com/f04778be-c6e3-4613-81b8-6b45a64b971a.png",
-    awayScore: null,
-    date: "18 Ekim 2026, Pazar",
-    time: "20:45",
-    stadium: "Ülker Spor ve Etkinlik Salonu",
-    rawDate: "2026-10-18T17:45:00Z",
-  },
-  {
-    id: "vb-live-1",
-    branch: "Voleybol",
-    competition: "Vodafone Sultanlar Ligi",
-    round: "2. Hafta",
-    homeTeam: "Fenerbahçe Medicana",
-    homeLogo: "fener.png",
-    homeScore: null,
-    awayTeam: "Ziraat Bankası",
-    awayLogo:
-      "https://r2.thesportsdb.com/images/media/team/badge/zrw7gq1601633519.png",
-    awayScore: null,
-    date: "17 Ekim 2026, Cumartesi",
-    time: "16:00",
-    stadium: "Burhan Felek Vestel Voleybol Salonu",
-    rawDate: "2026-10-17T13:00:00Z",
-  },
-  {
-    id: "fb-live-past-1",
-    branch: "Futbol",
-    competition: "Süper Lig",
-    round: "8. Hafta",
-    homeTeam: "Çaykur Rizespor",
-    homeLogo:
-      "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/7656.png",
-    homeScore: "0",
-    awayTeam: "Fenerbahçe",
-    awayLogo: "fener.png",
-    awayScore: "3",
-    date: "10 Ekim 2026, Cumartesi",
-    time: "19:00",
-    stadium: "Çaykur Didi Stadyumu",
-    rawDate: "2026-10-10T16:00:00Z",
-  },
-  {
-    id: "fb-live-past-2",
-    branch: "Futbol",
-    competition: "Süper Lig",
-    round: "7. Hafta",
-    homeTeam: "Fenerbahçe",
-    homeLogo: "fener.png",
-    homeScore: "8",
-    awayTeam: "Eyüpspor",
-    awayLogo:
-      "https://a.espncdn.com/combiner/i?img=/i/teamlogos/soccer/500/19827.png",
-    awayScore: "0",
-    date: "20 Eylül 2026, Pazar",
-    time: "17:00",
-    stadium: "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi",
-    rawDate: "2026-09-20T14:00:00Z",
-  },
+const FIXTURES_CACHE_TTL_MS = 60 * 1000;
+const PERSISTENT_FIXTURES_KEY = "fb_persisted_live_fixtures_v6";
+let cachedFixtures: MatchData[] | null = null;
+let lastFetchTimestamp = 0;
+let inFlightFixturesPromise: Promise<MatchData[]> | null = null;
+const lastGoodByBranch = new Map<string, MatchData[]>();
+
+export const fallbackCuratedFixtures: MatchData[] = [];
+
+function loadPersistedFixtures(): MatchData[] | null {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const raw = window.localStorage.getItem(PERSISTENT_FIXTURES_KEY);
+      if (raw) {
+        const parsed: MatchData[] = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function savePersistedFixtures(list: MatchData[]): void {
+  try {
+    if (!Array.isArray(list) || list.length === 0) return;
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.setItem(
+        PERSISTENT_FIXTURES_KEY,
+        JSON.stringify(list),
+      );
+    }
+  } catch {}
+}
+
+export function getCachedFixturesSync(): MatchData[] | null {
+  if (cachedFixtures && cachedFixtures.length > 0) return cachedFixtures;
+  const persisted = loadPersistedFixtures();
+  if (persisted && persisted.length > 0) {
+    cachedFixtures = persisted;
+    return persisted;
+  }
+  return null;
+}
+
+export function getCachedMatchByIdSync(matchId: string): MatchData | null {
+  const list = getCachedFixturesSync();
+  if (!list) return null;
+  return list.find((m) => m.id === matchId) || null;
+}
+
+export function getEuroLeagueSeasonCode(now: Date = new Date()): string {
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const seasonStartYear = month >= 8 ? year : year - 1;
+  return `E${seasonStartYear}`;
+}
+
+export function formatIstanbulDate(dateObj: Date): string {
+  try {
+    return dateObj.toLocaleDateString("tr-TR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      weekday: "long",
+      timeZone: "Europe/Istanbul",
+    });
+  } catch {
+    return dateObj.toLocaleDateString("tr-TR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      weekday: "long",
+    });
+  }
+}
+
+export function formatIstanbulTime(dateObj: Date): string {
+  try {
+    return dateObj.toLocaleTimeString("tr-TR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Europe/Istanbul",
+    });
+  } catch {
+    return dateObj.toLocaleTimeString("tr-TR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+}
+
+const ESPN_FOOTBALL_COMPETITIONS: { slug: string; label: string }[] = [
+  { slug: "tur.1", label: "Trendyol Süper Lig" },
+  { slug: "uefa.champions", label: "UEFA Şampiyonlar Ligi" },
+  { slug: "uefa.europa", label: "UEFA Avrupa Ligi" },
 ];
 
-export const fetchFixtures = async (): Promise<MatchData[]> => {
-  try {
-    const matchMap = new Map<string, MatchData>();
+export const fetchFixtures = async (
+  forceRefresh: boolean = false,
+): Promise<MatchData[]> => {
+  const nowMs = Date.now();
+  if (
+    !forceRefresh &&
+    cachedFixtures &&
+    cachedFixtures.length > 0 &&
+    nowMs - lastFetchTimestamp < FIXTURES_CACHE_TTL_MS
+  ) {
+    return cachedFixtures;
+  }
 
+  if (inFlightFixturesPromise) {
+    return inFlightFixturesPromise;
+  }
+
+  inFlightFixturesPromise = (async (): Promise<MatchData[]> => {
     try {
-      const [superLigPastRes, superLigFutureRes, uefaPastRes, uefaFutureRes] =
-        await Promise.all([
-          fetch(
-            "https://site.api.espn.com/apis/site/v2/sports/soccer/tur.1/teams/436/schedule",
+      const matchMap = new Map<string, MatchData>();
+
+      // 1. FUTBOL: ESPN canlı + geçmiş + gelecek fikstür
+      try {
+        const requests: Promise<{
+          res: Response | null;
+          label: string;
+          slug: string;
+        }>[] = [];
+        for (const comp of ESPN_FOOTBALL_COMPETITIONS) {
+          const base = `https://site.api.espn.com/apis/site/v2/sports/soccer/${comp.slug}/teams/436/schedule`;
+          requests.push(
+            safeFetch(base).then((res) => ({
+              res,
+              label: comp.label,
+              slug: comp.slug,
+            })),
+          );
+          requests.push(
+            safeFetch(`${base}?fixture=true`).then((res) => ({
+              res,
+              label: comp.label,
+              slug: comp.slug,
+            })),
+          );
+        }
+
+        const responses = await Promise.all(requests);
+
+        const parseEspnEvents = async (
+          res: Response | null,
+          compFallback: string,
+          leagueSlug: string,
+        ) => {
+          if (!res || !res.ok) return;
+          const data = await res.json();
+          if (!Array.isArray(data.events)) return;
+
+          data.events.forEach((event: any) => {
+            const comp = event.competitions?.[0];
+            if (!comp) return;
+
+            const homeComp = comp.competitors?.find(
+              (c: any) => c.homeAway === "home",
+            );
+            const awayComp = comp.competitors?.find(
+              (c: any) => c.homeAway === "away",
+            );
+            if (!homeComp || !awayComp) return;
+
+            const homeName = homeComp.team?.displayName || "Ev Sahibi";
+            const awayName = awayComp.team?.displayName || "Deplasman";
+            const isFBHome = homeName.toLowerCase().includes("fenerbah");
+            const isFBAway = awayName.toLowerCase().includes("fenerbah");
+
+            const state = comp.status?.type?.state;
+            const isCompleted =
+              comp.status?.type?.completed === true || state === "post";
+            const isLive = state === "in";
+            const hasScore = isCompleted || isLive;
+
+            const status: MatchStatus = isLive
+              ? "live"
+              : isCompleted
+                ? "finished"
+                : "upcoming";
+
+            const liveClock = isLive
+              ? comp.status?.type?.shortDetail ||
+                comp.status?.displayClock ||
+                "CANLI"
+              : undefined;
+
+            const dateObj = new Date(comp.date);
+            const dateStr = formatIstanbulDate(dateObj);
+            const timeStr = formatIstanbulTime(dateObj);
+
+            const compName = comp.notes?.[0]?.headline || compFallback;
+
+            let roundStr = "";
+            if (comp.round?.displayName) {
+              const raw = comp.round.displayName;
+              if (/matchday\s*(\d+)/i.test(raw)) {
+                roundStr = raw.replace(/matchday\s*(\d+)/i, "$1. Hafta");
+              } else if (/round\s*of\s*16/i.test(raw)) {
+                roundStr = "Son 16 Turu";
+              } else if (/quarter/i.test(raw)) {
+                roundStr = "Çeyrek Final";
+              } else if (/semi/i.test(raw)) {
+                roundStr = "Yarı Final";
+              } else if (/final/i.test(raw)) {
+                roundStr = "Final";
+              } else {
+                roundStr = raw;
+              }
+            } else if (compFallback.includes("UEFA")) {
+              roundStr = "Lig Aşaması";
+            } else if (comp.notes?.[0]?.headline) {
+              roundStr = "";
+            } else {
+              roundStr = "Lig Maçı";
+            }
+
+            const extractTeamScore = (c: any): string => {
+              if (c?.score?.displayValue !== undefined) {
+                return String(c.score.displayValue);
+              }
+              if (
+                typeof c?.score === "number" ||
+                typeof c?.score === "string"
+              ) {
+                return String(c.score);
+              }
+              return "0";
+            };
+
+            let homeLogoUrl = isFBHome
+              ? "fener.png"
+              : homeComp.team?.logo || homeComp.team?.logos?.[0]?.href;
+            let awayLogoUrl = isFBAway
+              ? "fener.png"
+              : awayComp.team?.logo || awayComp.team?.logos?.[0]?.href;
+
+            if (!isFBHome && homeName.toLowerCase().includes("kocaeli")) {
+              homeLogoUrl =
+                "https://res.cloudinary.com/z1hvtpqh/image/upload/v1789046202/kocaeli.png";
+            }
+            if (!isFBAway && awayName.toLowerCase().includes("kocaeli")) {
+              awayLogoUrl =
+                "https://res.cloudinary.com/z1hvtpqh/image/upload/v1789046202/kocaeli.png";
+            }
+
+            const matchId = String(event.id);
+            matchMap.set(matchId, {
+              id: matchId,
+              branch: "Futbol",
+              competition: compName,
+              round: roundStr,
+              homeTeam: isFBHome ? "Fenerbahçe" : homeName,
+              homeLogo: homeLogoUrl,
+              homeScore: hasScore ? extractTeamScore(homeComp) : null,
+              awayTeam: isFBAway ? "Fenerbahçe" : awayName,
+              awayLogo: awayLogoUrl,
+              awayScore: hasScore ? extractTeamScore(awayComp) : null,
+              date: dateStr,
+              time: timeStr !== "Invalid Date" ? timeStr : "20:00",
+              stadium:
+                comp.venue?.fullName ||
+                (isFBHome
+                  ? "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi"
+                  : `${homeName} Stadyumu`),
+              rawDate: comp.date,
+              status,
+              liveClock,
+              leagueSlug,
+            });
+          });
+        };
+
+        await Promise.all(
+          responses.map((item) =>
+            parseEspnEvents(item.res, item.label, item.slug),
           ),
-          fetch(
-            "https://site.api.espn.com/apis/site/v2/sports/soccer/tur.1/teams/436/schedule?fixture=true",
+        );
+      } catch (err) {
+        console.warn("ESPN futbol maç takvimi çekilemedi:", err);
+      }
+
+      // 2. BASKETBOL: EuroLeague v2 Live API (dinamik sezon kodu)
+      try {
+        const seasonCode = getEuroLeagueSeasonCode();
+        const euroRes = await safeFetch(
+          `https://api-live.euroleague.net/v2/competitions/E/seasons/${seasonCode}/games`,
+        );
+        if (euroRes && euroRes.ok) {
+          const euroData = await euroRes.json();
+          if (Array.isArray(euroData.data)) {
+            const fbGames = euroData.data.filter(
+              (g: any) =>
+                g.local?.club?.code === "ULK" || g.road?.club?.code === "ULK",
+            );
+
+            fbGames.forEach((g: any) => {
+              const isFBLocal = g.local?.club?.code === "ULK";
+              const isFBRoad = g.road?.club?.code === "ULK";
+              const dateObj = new Date(g.date);
+
+              const dateStr = formatIstanbulDate(dateObj);
+              const timeStr = formatIstanbulTime(dateObj);
+
+              const gameState = String(
+                g.gameStatus || g.status || "",
+              ).toLowerCase();
+              const isLive =
+                gameState === "live" ||
+                gameState === "playing" ||
+                (!g.played &&
+                  ((g.local?.score ?? 0) > 0 || (g.road?.score ?? 0) > 0));
+              const isFinished = Boolean(g.played) && !isLive;
+              const hasScore = isFinished || isLive;
+
+              const status: MatchStatus = isLive
+                ? "live"
+                : isFinished
+                  ? "finished"
+                  : "upcoming";
+
+              const matchId = `el-${g.gameCode}`;
+              matchMap.set(matchId, {
+                id: matchId,
+                branch: "Basketbol",
+                competition: "Turkish Airlines EuroLeague",
+                round: g.roundName || `Round ${g.round}`,
+                homeTeam: isFBLocal
+                  ? "Fenerbahçe Beko"
+                  : g.local?.club?.name || "Ev Sahibi",
+                homeLogo: isFBLocal
+                  ? "fener.png"
+                  : g.local?.club?.images?.crest,
+                homeScore: hasScore ? String(g.local?.score ?? 0) : null,
+                awayTeam: isFBRoad
+                  ? "Fenerbahçe Beko"
+                  : g.road?.club?.name || "Deplasman",
+                awayLogo: isFBRoad ? "fener.png" : g.road?.club?.images?.crest,
+                awayScore: hasScore ? String(g.road?.score ?? 0) : null,
+                date: dateStr,
+                time: timeStr !== "Invalid Date" ? timeStr : "20:45",
+                stadium:
+                  g.venue?.name ||
+                  (isFBLocal
+                    ? "Ülker Spor ve Etkinlik Salonu"
+                    : `${g.local?.club?.name || "Rakip"} Salonu`),
+                rawDate: g.date,
+                status,
+                liveClock: isLive ? "CANLI" : undefined,
+              });
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("EuroLeague maç takvimi çekilemedi:", err);
+      }
+
+      // 3. VOLEYBOL: TheSportsDB (Kadın Voleybol 136619)
+      try {
+        const [vLastRes, vNextRes] = await Promise.all([
+          safeFetch(
+            "https://www.thesportsdb.com/api/v1/json/3/eventslast.php?id=136619",
           ),
-          fetch(
-            "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/teams/436/schedule",
-          ),
-          fetch(
-            "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/teams/436/schedule?fixture=true",
+          safeFetch(
+            "https://www.thesportsdb.com/api/v1/json/3/eventsnext.php?id=136619",
           ),
         ]);
 
-      const parseEspnEvents = async (res: Response, compFallback: string) => {
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!Array.isArray(data.events)) return;
+        const parseTsdbVolley = async (res: Response | null) => {
+          if (!res || !res.ok) return;
+          const data = await res.json();
+          const events = [...(data.results || []), ...(data.events || [])];
 
-        data.events.forEach((event: any) => {
-          const comp = event.competitions?.[0];
-          if (!comp) return;
+          events.forEach((item: any) => {
+            const isFBHome = item.strHomeTeam?.includes("Fenerbah");
+            const isFBAway = item.strAwayTeam?.includes("Fenerbah");
+            const matchId = `tsdb-${item.idEvent}`;
 
-          const homeComp = comp.competitors?.find(
-            (c: any) => c.homeAway === "home",
-          );
-          const awayComp = comp.competitors?.find(
-            (c: any) => c.homeAway === "away",
-          );
-          if (!homeComp || !awayComp) return;
+            const rawDateStr = item.dateEvent
+              ? `${item.dateEvent}T${item.strTime || "16:00:00"}Z`
+              : undefined;
+            const dateObj = rawDateStr
+              ? new Date(rawDateStr)
+              : new Date(item.dateEvent);
 
-          const homeName = homeComp.team?.displayName || "Ev Sahibi";
-          const awayName = awayComp.team?.displayName || "Deplasman";
-          const isFBHome = homeName.toLowerCase().includes("fenerbah");
-          const isFBAway = awayName.toLowerCase().includes("fenerbah");
+            const hasScores =
+              item.intHomeScore !== null &&
+              item.intHomeScore !== undefined &&
+              item.intHomeScore !== "" &&
+              item.intAwayScore !== null &&
+              item.intAwayScore !== undefined &&
+              item.intAwayScore !== "";
 
-          const isCompleted = comp.status?.type?.completed === true;
+            const isPastWithoutScore =
+              !hasScores &&
+              rawDateStr &&
+              new Date(rawDateStr).getTime() < Date.now() - 4 * 60 * 60 * 1000;
 
-          const dateObj = new Date(comp.date);
-          const dateStr = dateObj.toLocaleDateString("tr-TR", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-            weekday: "long",
-          });
-          const timeStr = dateObj.toLocaleTimeString("tr-TR", {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-
-          const compName =
-            comp.notes?.[0]?.headline ||
-            (compFallback === "Süper Lig"
-              ? "Trendyol Süper Lig"
-              : "UEFA Şampiyonlar Ligi");
-
-          let roundStr = "";
-          if (comp.round?.displayName) {
-            const raw = comp.round.displayName;
-            if (/matchday\s*(\d+)/i.test(raw)) {
-              roundStr = raw.replace(/matchday\s*(\d+)/i, "$1. Hafta");
-            } else if (/round\s*of\s*16/i.test(raw)) {
-              roundStr = "Son 16 Turu";
-            } else if (/quarter/i.test(raw)) {
-              roundStr = "Çeyrek Final";
-            } else if (/semi/i.test(raw)) {
-              roundStr = "Yarı Final";
-            } else if (/final/i.test(raw)) {
-              roundStr = "Final";
-            } else {
-              roundStr = raw;
+            if (isPastWithoutScore) {
+              return;
             }
-          } else if (compFallback === "UEFA Şampiyonlar Ligi") {
-            roundStr = "Lig Aşaması";
-          } else if (comp.notes?.[0]?.headline) {
-            roundStr = "";
-          } else {
-            roundStr = "Lig Maçı";
-          }
 
-          const matchId = String(event.id);
-          matchMap.set(matchId, {
-            id: matchId,
-            branch: "Futbol",
-            competition: compName,
-            round: roundStr,
-            homeTeam: isFBHome ? "Fenerbahçe" : homeName,
-            homeLogo: isFBHome
-              ? "fener.png"
-              : homeComp.team?.logo || homeComp.team?.logos?.[0]?.href,
-            homeScore: isCompleted
-              ? (homeComp.score?.displayValue ?? "0")
-              : null,
-            awayTeam: isFBAway ? "Fenerbahçe" : awayName,
-            awayLogo: isFBAway
-              ? "fener.png"
-              : awayComp.team?.logo || awayComp.team?.logos?.[0]?.href,
-            awayScore: isCompleted
-              ? (awayComp.score?.displayValue ?? "0")
-              : null,
-            date: dateStr,
-            time: timeStr !== "Invalid Date" ? timeStr : "20:00",
-            stadium:
-              comp.venue?.fullName ||
-              (isFBHome
-                ? "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi"
-                : "Deplasman"),
-            rawDate: comp.date,
-          });
-        });
-      };
-
-      await Promise.all([
-        parseEspnEvents(superLigPastRes, "Süper Lig"),
-        parseEspnEvents(superLigFutureRes, "Süper Lig"),
-        parseEspnEvents(uefaPastRes, "UEFA Şampiyonlar Ligi"),
-        parseEspnEvents(uefaFutureRes, "UEFA Şampiyonlar Ligi"),
-      ]);
-    } catch (err) {
-      console.warn("ESPN futbol maç takvimi çekilemedi:", err);
-    }
-    try {
-      const euroRes = await fetch(
-        "https://api-live.euroleague.net/v2/competitions/E/seasons/E2026/games",
-      );
-      if (euroRes.ok) {
-        const euroData = await euroRes.json();
-        if (Array.isArray(euroData.data)) {
-          const fbGames = euroData.data.filter(
-            (g: any) =>
-              g.local?.club?.code === "ULK" || g.road?.club?.code === "ULK",
-          );
-
-          fbGames.forEach((g: any) => {
-            const isFBLocal = g.local?.club?.code === "ULK";
-            const isFBRoad = g.road?.club?.code === "ULK";
-            const dateObj = new Date(g.date);
-
-            const dateStr = dateObj.toLocaleDateString("tr-TR", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-              weekday: "long",
-            });
-            const timeStr = dateObj.toLocaleTimeString("tr-TR", {
-              hour: "2-digit",
-              minute: "2-digit",
-            });
-
-            const matchId = `el-${g.gameCode}`;
             matchMap.set(matchId, {
               id: matchId,
-              branch: "Basketbol",
-              competition: "Turkish Airlines EuroLeague",
-              round: g.roundName || `Round ${g.round}`,
-              homeTeam: isFBLocal
-                ? "Fenerbahçe Beko"
-                : g.local?.club?.name || "Ev Sahibi",
-              homeLogo: isFBLocal ? "fener.png" : g.local?.club?.images?.crest,
-              homeScore: g.played ? String(g.local?.score) : null,
-              awayTeam: isFBRoad
-                ? "Fenerbahçe Beko"
-                : g.road?.club?.name || "Deplasman",
-              awayLogo: isFBRoad ? "fener.png" : g.road?.club?.images?.crest,
-              awayScore: g.played ? String(g.road?.score) : null,
-              date: dateStr,
-              time: timeStr !== "Invalid Date" ? timeStr : "20:45",
-              stadium:
-                g.venue?.name ||
-                (isFBLocal ? "Ülker Spor ve Etkinlik Salonu" : "Deplasman"),
-              rawDate: g.date,
+              branch: "Voleybol",
+              competition: item.strLeague || "Vodafone Sultanlar Ligi",
+              round: item.intRound ? `${item.intRound}. Hafta` : "Lig Maçı",
+              homeTeam: isFBHome ? "Fenerbahçe Medicana" : item.strHomeTeam,
+              homeLogo: isFBHome ? "fener.png" : item.strHomeTeamBadge,
+              homeScore: hasScores ? String(item.intHomeScore) : null,
+              awayTeam: isFBAway ? "Fenerbahçe Medicana" : item.strAwayTeam,
+              awayLogo: isFBAway ? "fener.png" : item.strAwayTeamBadge,
+              awayScore: hasScores ? String(item.intAwayScore) : null,
+              date: formatIstanbulDate(dateObj),
+              time: item.strTimeLocal
+                ? item.strTimeLocal.substring(0, 5)
+                : formatIstanbulTime(dateObj),
+              stadium: item.strVenue || "Burhan Felek Vestel Voleybol Salonu",
+              rawDate: rawDateStr,
+              status: hasScores ? "finished" : "upcoming",
             });
           });
+        };
+
+        await Promise.all([
+          parseTsdbVolley(vLastRes),
+          parseTsdbVolley(vNextRes),
+        ]);
+      } catch {
+        // Voleybol API ulaşılamadığında sadece önceki gerçek voleybol verisi varsa korunur
+      }
+
+      const allMatches = Array.from(matchMap.values());
+      const persisted = loadPersistedFixtures();
+
+      // Eğer bir branş bu istekte geçici ağ hatası yaşadıysa sadece daha önce API'den çekilmiş GERÇEK veriyi koru (sahte maç ekleme!)
+      const branches = ["Futbol", "Basketbol", "Voleybol"] as const;
+      for (const br of branches) {
+        const freshForBranch = allMatches.filter((m) => m.branch === br);
+        if (freshForBranch.length > 0) {
+          lastGoodByBranch.set(br, freshForBranch);
+        } else {
+          const prevReal =
+            lastGoodByBranch.get(br) ||
+            persisted?.filter((m) => m.branch === br);
+          if (prevReal && prevReal.length > 0) {
+            allMatches.push(...prevReal);
+          }
         }
       }
-    } catch (err) {
-      console.warn("EuroLeague maç takvimi çekilemedi:", err);
-    }
-    try {
-      const [vLastRes, vNextRes] = await Promise.all([
-        fetch(
-          "https://www.thesportsdb.com/api/v1/json/3/eventslast.php?id=136619",
-        ),
-        fetch(
-          "https://www.thesportsdb.com/api/v1/json/3/eventsnext.php?id=136619",
-        ),
-      ]);
 
-      const parseTsdbVolley = async (res: Response) => {
-        if (!res.ok) return;
-        const data = await res.json();
-        const events = [...(data.results || []), ...(data.events || [])];
+      const now = Date.now();
+      const liveMatches = allMatches.filter((m) => m.status === "live");
 
-        events.forEach((item: any) => {
-          const dateObj = new Date(item.dateEvent);
-          const isFBHome = item.strHomeTeam?.includes("Fenerbah");
-          const isFBAway = item.strAwayTeam?.includes("Fenerbah");
-          const matchId = `tsdb-${item.idEvent}`;
-
-          const rawDateStr = item.dateEvent
-            ? `${item.dateEvent}T${item.strTime || "16:00:00"}Z`
-            : undefined;
-
-          matchMap.set(matchId, {
-            id: matchId,
-            branch: "Voleybol",
-            competition: item.strLeague || "Vodafone Sultanlar Ligi",
-            round: item.intRound ? `${item.intRound}. Hafta` : "Lig Maçı",
-            homeTeam: isFBHome ? "Fenerbahçe Medicana" : item.strHomeTeam,
-            homeLogo: isFBHome ? "fener.png" : item.strHomeTeamBadge,
-            homeScore: item.intHomeScore ?? null,
-            awayTeam: isFBAway ? "Fenerbahçe Medicana" : item.strAwayTeam,
-            awayLogo: isFBAway ? "fener.png" : item.strAwayTeamBadge,
-            awayScore: item.intAwayScore ?? null,
-            date: dateObj.toLocaleDateString("tr-TR", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-              weekday: "long",
-            }),
-            time: item.strTimeLocal
-              ? item.strTimeLocal.substring(0, 5)
-              : "19:00",
-            stadium: item.strVenue || "Burhan Felek Vestel Voleybol Salonu",
-            rawDate: rawDateStr,
-          });
+      const upcoming = allMatches
+        .filter(
+          (m) =>
+            m.status !== "live" &&
+            m.status !== "finished" &&
+            m.homeScore === null &&
+            m.awayScore === null,
+        )
+        .sort((a, b) => {
+          const timeA = a.rawDate
+            ? new Date(a.rawDate).getTime()
+            : now + 999999999;
+          const timeB = b.rawDate
+            ? new Date(b.rawDate).getTime()
+            : now + 999999999;
+          return timeA - timeB;
         });
-      };
 
-      await Promise.all([parseTsdbVolley(vLastRes), parseTsdbVolley(vNextRes)]);
-    } catch (err) {
-      console.warn("TheSportsDB voleybol çekilemedi:", err);
+      const past = allMatches
+        .filter(
+          (m) =>
+            m.status === "finished" ||
+            (m.status !== "live" &&
+              (m.homeScore !== null || m.awayScore !== null)),
+        )
+        .sort((a, b) => {
+          const timeA = a.rawDate ? new Date(a.rawDate).getTime() : 0;
+          const timeB = b.rawDate ? new Date(b.rawDate).getTime() : 0;
+          return timeB - timeA;
+        });
+
+      const result = [...liveMatches, ...upcoming, ...past];
+      if (result.length > 0) {
+        cachedFixtures = result;
+        lastFetchTimestamp = Date.now();
+        savePersistedFixtures(result);
+      }
+      return result;
+    } catch {
+      return cachedFixtures || loadPersistedFixtures() || [];
+    } finally {
+      inFlightFixturesPromise = null;
     }
+  })();
 
-    const allMatches = Array.from(matchMap.values());
-
-    if (allMatches.length === 0) {
-      return fallbackCuratedFixtures;
-    }
-
-    if (!allMatches.some((m) => m.branch === "Voleybol")) {
-      const vFallback = fallbackCuratedFixtures.filter(
-        (m) => m.branch === "Voleybol",
-      );
-      allMatches.push(...vFallback);
-    }
-
-    const now = Date.now();
-    const upcoming = allMatches
-      .filter((m) => m.homeScore === null && m.awayScore === null)
-      .sort((a, b) => {
-        const timeA = a.rawDate
-          ? new Date(a.rawDate).getTime()
-          : now + 999999999;
-        const timeB = b.rawDate
-          ? new Date(b.rawDate).getTime()
-          : now + 999999999;
-        return timeA - timeB;
-      });
-
-    const past = allMatches
-      .filter((m) => m.homeScore !== null && m.awayScore !== null)
-      .sort((a, b) => {
-        const timeA = a.rawDate ? new Date(a.rawDate).getTime() : 0;
-        const timeB = b.rawDate ? new Date(b.rawDate).getTime() : 0;
-        return timeB - timeA;
-      });
-
-    return [...upcoming, ...past];
-  } catch (error) {
-    console.error("fetchFixtures genel hata:", error);
-    return fallbackCuratedFixtures;
-  }
+  return inFlightFixturesPromise;
 };

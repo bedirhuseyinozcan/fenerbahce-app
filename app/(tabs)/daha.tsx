@@ -1,11 +1,21 @@
 import Colors from "@/constants/Colors";
+import {
+  calculatePredictionStats,
+  getNtfyTopic,
+  openNtfySubscription,
+  sendTestNtfyNotification,
+  setNtfyTopic,
+} from "@/services/fanEngagementService";
+import { fetchFixtures } from "@/services/fixtureService";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   Linking,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useColorScheme,
   View,
@@ -16,25 +26,64 @@ export default function DahaFazlaScreen() {
   const colorScheme = useColorScheme() ?? "light";
   const theme = Colors[colorScheme];
 
+  const [ntfyTopic, setNtfyTopicState] = useState(getNtfyTopic());
+  const [pushStatus, setPushStatus] = useState<string>("");
+  const [predStats, setPredStats] = useState({
+    totalPredictions: 0,
+    exactHits: 0,
+    correctOutcomes: 0,
+    totalPoints: 0,
+  });
+
+  useEffect(() => {
+    fetchFixtures().then((matches) => {
+      setPredStats(calculatePredictionStats(matches));
+    });
+  }, []);
+
+  const handleSaveTopic = (val: string) => {
+    setNtfyTopicState(val);
+    setNtfyTopic(val);
+  };
+
+  const handleTestPush = async () => {
+    setPushStatus("Gönderiliyor...");
+    const ok = await sendTestNtfyNotification();
+    setPushStatus(
+      ok
+        ? `✅ Bildirim '${getNtfyTopic()}' kanalına gönderildi!`
+        : "❌ Gönderilemedi, internet bağlantısını kontrol edin.",
+    );
+  };
+
   const menuSections = [
     {
       title: "KULÜP & SPORCULAR",
       items: [
         {
           id: "sporcular",
-          title: "A Takım Kadroları",
-          subtitle: "Futbol, Basketbol ve Voleybol sporcuları",
+          title: "Tüm Branş Kadroları",
+          subtitle:
+            "Futbol, Basketbol, Voleybol (Erkek & Kadın) tüm sporcularımız",
           icon: "people",
           iconColor: Colors.brand.navy,
           onPress: () => router.push("/sporcular" as any),
         },
         {
           id: "puan-durumu",
-          title: "Süper Lig Puan Durumu",
-          subtitle: "Güncel puan tablosu ve averajlar",
+          title: "Canlı Puan Durumları",
+          subtitle: "Süper Lig, Şampiyonlar Ligi ve EuroLeague tabloları",
           icon: "trophy",
           iconColor: "#FFA000",
           onPress: () => router.push("/puan-durumu" as any),
+        },
+        {
+          id: "derbi-merkezi",
+          title: "Derbi Merkezi & H2H İstatistikleri",
+          subtitle: "GS, BJK ve TS karşısında tüm zamanlar galibiyet üstünlüğü",
+          icon: "flame",
+          iconColor: "#E53935",
+          onPress: () => router.push("/derbi-merkezi" as any),
         },
         {
           id: "haberler",
@@ -89,10 +138,10 @@ export default function DahaFazlaScreen() {
         onPress={() => router.push("/sporcular" as any)}
       >
         <View style={styles.bannerLeft}>
-          <Text style={styles.bannerTag}>YENİ ÖZELLİK</Text>
-          <Text style={styles.bannerTitle}>A Takım Sporcuları</Text>
+          <Text style={styles.bannerTag}>6 BRANŞ • GÜNCEL KADRO</Text>
+          <Text style={styles.bannerTitle}>Tüm Branş Sporcularımız</Text>
           <Text style={styles.bannerSubtitle}>
-            Futbol, Basketbol ve Voleybol güncel kadrolarını keşfedin.
+            Futbol, Basketbol, Voleybol (Erkek & Kadın) kadrolarını keşfedin.
           </Text>
         </View>
         <View style={styles.bannerIconContainer}>
@@ -100,6 +149,183 @@ export default function DahaFazlaScreen() {
           <Text style={{ fontSize: 24, marginTop: -8 }}>🏀🏐</Text>
         </View>
       </TouchableOpacity>
+
+      {/* TARAFTAR SKOR TAHMİN LİGİ KARTI (Faz 4) */}
+      <View
+        style={[
+          styles.cardGroup,
+          {
+            backgroundColor: theme.cardBackground,
+            padding: 16,
+            marginBottom: 20,
+          },
+        ]}
+      >
+        <Text
+          style={{
+            fontSize: 13,
+            fontWeight: "900",
+            color: Colors.brand.navy,
+            marginBottom: 8,
+          }}
+        >
+          🏆 ARKADAŞ TAHMİN LİGİ PUANIN
+        </Text>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            marginTop: 4,
+          }}
+        >
+          <View style={{ alignItems: "center", flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 20,
+                fontWeight: "900",
+                color: Colors.brand.navy,
+              }}
+            >
+              {predStats.totalPoints}
+            </Text>
+            <Text style={{ fontSize: 11, color: theme.secondaryText }}>
+              Toplam Puan
+            </Text>
+          </View>
+          <View style={{ alignItems: "center", flex: 1 }}>
+            <Text style={{ fontSize: 20, fontWeight: "900", color: "#00C853" }}>
+              {predStats.exactHits}
+            </Text>
+            <Text style={{ fontSize: 11, color: theme.secondaryText }}>
+              Tam Skor (3P)
+            </Text>
+          </View>
+          <View style={{ alignItems: "center", flex: 1 }}>
+            <Text style={{ fontSize: 20, fontWeight: "900", color: "#FFA000" }}>
+              {predStats.correctOutcomes}
+            </Text>
+            <Text style={{ fontSize: 11, color: theme.secondaryText }}>
+              Doğru Sonuç (1P)
+            </Text>
+          </View>
+          <View style={{ alignItems: "center", flex: 1 }}>
+            <Text
+              style={{ fontSize: 20, fontWeight: "900", color: theme.text }}
+            >
+              {predStats.totalPredictions}
+            </Text>
+            <Text style={{ fontSize: 11, color: theme.secondaryText }}>
+              Tahmin
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* SIFIR MALİYETLİ CANLI GOL BİLDİRİM KANALI (ntfy.sh - Faz 2) */}
+      <View
+        style={[
+          styles.cardGroup,
+          {
+            backgroundColor: theme.cardBackground,
+            padding: 16,
+            marginBottom: 20,
+          },
+        ]}
+      >
+        <Text
+          style={{
+            fontSize: 13,
+            fontWeight: "900",
+            color: Colors.brand.navy,
+            marginBottom: 4,
+          }}
+        >
+          🔔 SIFIR MALİYETLİ CANLI MAÇ BİLDİRİMİ (ntfy)
+        </Text>
+        <Text
+          style={{
+            fontSize: 12,
+            color: theme.secondaryText,
+            lineHeight: 17,
+            marginBottom: 10,
+          }}
+        >
+          Android ve iOS'ta mağaza veya ücretli sunucu olmadan gol ve maç sonu
+          bildirimi almak için arkadaş grubunuzla ortak ntfy.sh kanal kodunuzu
+          girin:
+        </Text>
+        <TextInput
+          value={ntfyTopic}
+          onChangeText={handleSaveTopic}
+          placeholder="fenerbahce-canli-1907"
+          placeholderTextColor={theme.secondaryText}
+          style={{
+            borderWidth: 1,
+            borderColor: theme.placeholder,
+            borderRadius: 10,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            color: theme.text,
+            fontSize: 13,
+            marginBottom: 10,
+          }}
+        />
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <TouchableOpacity
+            onPress={openNtfySubscription}
+            style={{
+              flex: 1,
+              backgroundColor: Colors.brand.navy,
+              paddingVertical: 10,
+              borderRadius: 10,
+              alignItems: "center",
+            }}
+          >
+            <Text
+              style={{
+                color: Colors.brand.yellow,
+                fontSize: 12,
+                fontWeight: "bold",
+              }}
+            >
+              Kanala Abone Ol
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleTestPush}
+            style={{
+              flex: 1,
+              backgroundColor: Colors.brand.yellow,
+              paddingVertical: 10,
+              borderRadius: 10,
+              alignItems: "center",
+            }}
+          >
+            <Text
+              style={{
+                color: Colors.brand.navy,
+                fontSize: 12,
+                fontWeight: "bold",
+              }}
+            >
+              Test Gol Bildirimi At
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {pushStatus ? (
+          <Text
+            style={{
+              marginTop: 8,
+              fontSize: 11,
+              color: theme.text,
+              fontWeight: "600",
+            }}
+          >
+            {pushStatus}
+          </Text>
+        ) : null}
+      </View>
+
       {menuSections.map((sec, sIdx) => (
         <View key={sIdx} style={styles.sectionContainer}>
           <Text style={[styles.sectionTitle, { color: theme.secondaryText }]}>
@@ -164,7 +390,7 @@ export default function DahaFazlaScreen() {
       ))}
       <View style={styles.footerContainer}>
         <Text style={[styles.footerText, { color: theme.secondaryText }]}>
-          Fenerbahçe Mobil v1.0.0 (Expo SDK 57)
+          Fenerbahçe Mobil v1.1.0 (Expo SDK 57)
         </Text>
         <Text
           style={[

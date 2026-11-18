@@ -1,16 +1,29 @@
 import CloudinaryImage from "@/components/CloudinaryImage";
 import MatchCard from "@/components/MatchCard";
 import Colors from "@/constants/Colors";
-import { fetchFixtures } from "@/services/fixtureService";
+import { getTodayHistoricalEvent } from "@/data/historyData";
+import {
+  fallbackCuratedFixtures,
+  fetchFixtures,
+  getCachedFixturesSync,
+} from "@/services/fixtureService";
 import { fetchNews } from "@/services/newsService";
-import { fetchSuperLigStandings } from "@/services/standingsService";
+import {
+  fetchSuperLigStandings,
+  getCachedStandingsSync,
+} from "@/services/standingsService";
+import {
+  fetchKadikoyWeather,
+  MatchWeatherInfo,
+} from "@/services/weatherService";
 import { MatchData, NewsData, TeamStanding } from "@/types";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
   Linking,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -69,42 +82,80 @@ export default function TabOneScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const [allFixtures, setAllFixtures] = useState<MatchData[]>([]);
+  const [allFixtures, setAllFixtures] = useState<MatchData[]>(
+    () => getCachedFixturesSync() || [],
+  );
   const [selectedHeroBranch, setSelectedHeroBranch] = useState<
     "Futbol" | "Basketbol" | "Voleybol"
   >("Futbol");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !getCachedFixturesSync());
+  const [refreshing, setRefreshing] = useState(false);
 
   const [news, setNews] = useState<NewsData[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
 
-  const [standings, setStandings] = useState<TeamStanding[]>([]);
+  const [standings, setStandings] = useState<TeamStanding[]>(() =>
+    (getCachedStandingsSync("superlig") || []).slice(0, 5),
+  );
+  const [weather, setWeather] = useState<MatchWeatherInfo | null>(null);
+  const todayHistory = useMemo(() => getTodayHistoricalEvent(), []);
+
+  const loadData = useCallback(async (force: boolean = false, silent: boolean = false) => {
+    if (!silent) {
+      setNewsLoading(true);
+    }
+
+    fetchFixtures(force).then((fixturesData) => {
+      setAllFixtures(fixturesData);
+      setLoading(false);
+      setRefreshing(false);
+    });
+
+    fetchSuperLigStandings(force).then((standingsData) => {
+      setStandings(standingsData.slice(0, 5));
+    });
+
+    fetchNews().then((newsData) => {
+      setNews(newsData.slice(0, 5));
+      setNewsLoading(false);
+    });
+
+    fetchKadikoyWeather().then((w) => {
+      if (w) setWeather(w);
+    });
+  }, []);
 
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      setNewsLoading(true);
-
-      const [fixturesData, newsData, standingsData] = await Promise.all([
-        fetchFixtures(),
-        fetchNews(),
-        fetchSuperLigStandings(),
-      ]);
-
-      setAllFixtures(fixturesData);
-      setNews(newsData.slice(0, 5));
-      setStandings(standingsData.slice(0, 5));
-
-      setLoading(false);
-      setNewsLoading(false);
-    };
-
     loadData();
-  }, []);
+  }, [loadData]);
+
+  // Canlı maç varsa 20 saniyede bir, yoksa 60 saniyede bir otomatik güncelleme (K2 düzeltmesi)
+  useEffect(() => {
+    const hasLive = allFixtures.some((m) => m.status === "live");
+    const intervalMs = hasLive ? 20000 : 60000;
+    const timer = setInterval(() => {
+      loadData(true, true);
+    }, intervalMs);
+    return () => clearInterval(timer);
+  }, [loadData, allFixtures]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadData(true, true);
+  }, [loadData]);
+
   const nextMatch = useMemo(() => {
+    // Önce seçili branşta canlı maç var mı bak
+    const branchLive = allFixtures.find(
+      (m) => m.branch === selectedHeroBranch && m.status === "live",
+    );
+    if (branchLive) return branchLive;
+
+    // Sonra seçili branşta yaklaşan maç var mı bak
     const branchUpcoming = allFixtures.find(
       (m) =>
         m.branch === selectedHeroBranch &&
+        m.status !== "finished" &&
         m.homeScore === null &&
         m.awayScore === null,
     );
@@ -119,9 +170,15 @@ export default function TabOneScreen() {
   }, [allFixtures, selectedHeroBranch]);
 
   const upcomingMatches = useMemo(() => {
-    return allFixtures
-      .filter((m) => m.homeScore === null && m.awayScore === null)
-      .slice(0, 4);
+    const liveAndUpcoming = allFixtures.filter(
+      (m) =>
+        m.status === "live" ||
+        (m.homeScore === null && m.awayScore === null),
+    );
+    return (liveAndUpcoming.length > 0 ? liveAndUpcoming : allFixtures).slice(
+      0,
+      5,
+    );
   }, [allFixtures]);
 
   const [countdown, setCountdown] = useState<CountdownTime>({
@@ -155,10 +212,29 @@ export default function TabOneScreen() {
     return () => clearInterval(interval);
   }, [nextMatch?.rawDate]);
 
+  const isNextMatchSameCalendarDay = useMemo(() => {
+    if (!nextMatch?.rawDate) return false;
+    const d1 = new Date(nextMatch.rawDate);
+    const d2 = new Date();
+    return (
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate()
+    );
+  }, [nextMatch?.rawDate]);
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.background }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={Colors.brand.navy}
+          colors={[Colors.brand.navy, Colors.brand.yellow]}
+        />
+      }
     >
       {nextMatch ? (
         <View style={[styles.heroContainer, { marginTop: insets.top }]}>
@@ -167,6 +243,7 @@ export default function TabOneScreen() {
               uri: "https://media.fenerbahce.org/getmedia/5c3702c2-d352-45e3-b09e-7341857c50be/stad.jpg",
             }}
             style={styles.heroImage}
+            resizeMode="cover"
           />
           <View
             style={[
@@ -228,11 +305,52 @@ export default function TabOneScreen() {
               </View>
 
               <View style={styles.heroScoreBoard}>
-                <Text style={styles.heroDate}>{nextMatch.date}</Text>
-                <Text style={styles.heroTime}>{nextMatch.time}</Text>
-                <Text style={styles.heroStadium} numberOfLines={1}>
-                  📍 {nextMatch.stadium}
-                </Text>
+                {nextMatch.status === "live" ||
+                (nextMatch.homeScore != null && nextMatch.awayScore != null) ? (
+                  <>
+                    <Text style={styles.heroDate}>{nextMatch.date}</Text>
+                    <Text style={styles.heroTime}>
+                      {nextMatch.homeScore ?? "0"} - {nextMatch.awayScore ?? "0"}
+                    </Text>
+                    <Text style={styles.heroStadium} numberOfLines={1}>
+                      📍 {nextMatch.stadium}
+                    </Text>
+                    {weather && (
+                      <Text
+                        style={{
+                          color: Colors.brand.yellow,
+                          fontSize: 10,
+                          fontWeight: "bold",
+                          marginTop: 2,
+                        }}
+                      >
+                        {weather.emoji} Kadıköy {weather.temperatureC}°C •{" "}
+                        {weather.conditionLabel}
+                      </Text>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.heroDate}>{nextMatch.date}</Text>
+                    <Text style={styles.heroTime}>{nextMatch.time}</Text>
+                    <Text style={styles.heroStadium} numberOfLines={1}>
+                      📍 {nextMatch.stadium}
+                    </Text>
+                    {weather && (
+                      <Text
+                        style={{
+                          color: Colors.brand.yellow,
+                          fontSize: 10,
+                          fontWeight: "bold",
+                          marginTop: 2,
+                        }}
+                      >
+                        {weather.emoji} Kadıköy {weather.temperatureC}°C •{" "}
+                        {weather.conditionLabel}
+                      </Text>
+                    )}
+                  </>
+                )}
               </View>
 
               <View style={styles.heroTeam}>
@@ -247,7 +365,17 @@ export default function TabOneScreen() {
               </View>
             </View>
 
-            {!countdown.isPast ? (
+            {nextMatch.status === "live" ? (
+              <View
+                style={[styles.matchDayBanner, { backgroundColor: "#E53935" }]}
+              >
+                <Text
+                  style={[styles.matchDayBannerText, { color: "#FFFFFF" }]}
+                >
+                  🔴 CANLI OYNANIYOR {nextMatch.liveClock ? `• ${nextMatch.liveClock}` : ""}
+                </Text>
+              </View>
+            ) : !countdown.isPast ? (
               <View style={styles.countdownContainer}>
                 <Text style={styles.countdownTitle}>
                   ⚡ BAŞLAMASINA KALAN SÜRE
@@ -282,13 +410,20 @@ export default function TabOneScreen() {
                   </View>
                 </View>
               </View>
-            ) : (
+            ) : nextMatch.status === "finished" ||
+              (nextMatch.homeScore != null && nextMatch.awayScore != null) ? (
+              <View style={styles.matchDayBanner}>
+                <Text style={styles.matchDayBannerText}>
+                  🏁 MAÇ SONUCU: {nextMatch.homeScore} - {nextMatch.awayScore}
+                </Text>
+              </View>
+            ) : isNextMatchSameCalendarDay ? (
               <View style={styles.matchDayBanner}>
                 <Text style={styles.matchDayBannerText}>
                   🔥 BUGÜN MAÇ GÜNÜ! 🔥
                 </Text>
               </View>
-            )}
+            ) : null}
             <View style={styles.heroButtonsRow}>
               <TouchableOpacity
                 style={styles.heroActionBtn}
@@ -397,21 +532,93 @@ export default function TabOneScreen() {
             styles.quickActionBtn,
             { backgroundColor: theme.cardBackground },
           ]}
-          onPress={() => router.push("/fikstur" as any)}
+          onPress={() => router.push("/derbi-merkezi" as any)}
           activeOpacity={0.8}
         >
           <View
             style={[
               styles.quickActionIconBox,
-              { backgroundColor: "rgba(67, 160, 71, 0.15)" },
+              { backgroundColor: "rgba(229, 57, 53, 0.15)" },
             ]}
           >
-            <Text style={{ fontSize: 18 }}>📅</Text>
+            <Text style={{ fontSize: 18 }}>⚔️</Text>
           </View>
           <Text style={[styles.quickActionText, { color: theme.text }]}>
-            Fikstür
+            Derbi & H2H
           </Text>
         </TouchableOpacity>
+      </View>
+
+      {/* TARİHTE BUGÜN KARTI (Faz 4) */}
+      <View
+        style={{
+          marginHorizontal: 16,
+          marginTop: 12,
+          padding: 14,
+          borderRadius: 12,
+          backgroundColor: Colors.brand.navy,
+          borderWidth: 1,
+          borderColor: "rgba(255, 237, 0, 0.35)",
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 6,
+          }}
+        >
+          <Text
+            style={{
+              color: Colors.brand.yellow,
+              fontSize: 11,
+              fontWeight: "900",
+              letterSpacing: 0.6,
+            }}
+          >
+            📜 TARİHTE FENERBAHÇE • {todayHistory.year}
+          </Text>
+          {todayHistory.score && (
+            <View
+              style={{
+                backgroundColor: Colors.brand.yellow,
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 8,
+              }}
+            >
+              <Text
+                style={{
+                  color: Colors.brand.navy,
+                  fontSize: 10,
+                  fontWeight: "900",
+                }}
+              >
+                {todayHistory.score}
+              </Text>
+            </View>
+          )}
+        </View>
+        <Text
+          style={{
+            color: "#FFFFFF",
+            fontSize: 14,
+            fontWeight: "bold",
+            marginBottom: 4,
+          }}
+        >
+          {todayHistory.title}
+        </Text>
+        <Text
+          style={{
+            color: "rgba(255, 255, 255, 0.85)",
+            fontSize: 12,
+            lineHeight: 17,
+          }}
+        >
+          {todayHistory.description}
+        </Text>
       </View>
 
       <View style={styles.section}>
@@ -450,6 +657,8 @@ export default function TabOneScreen() {
                 date={item.date}
                 time={item.time}
                 stadium={item.stadium}
+                status={item.status}
+                liveClock={item.liveClock}
                 onPress={() => router.push(`/mac/${item.id}` as any)}
               />
             ))}
@@ -630,6 +839,7 @@ export default function TabOneScreen() {
               <Image
                 source={{ uri: news[0].image }}
                 style={styles.featuredNewsImage}
+                resizeMode="cover"
               />
               <View style={styles.featuredNewsContent}>
                 <View style={styles.newsTag}>
@@ -749,7 +959,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     width: "100%",
     height: "100%",
-    resizeMode: "cover",
   },
   heroContent: {
     paddingHorizontal: 16,
@@ -1011,7 +1220,6 @@ const styles = StyleSheet.create({
   featuredNewsImage: {
     width: "100%",
     height: 200,
-    resizeMode: "cover",
   },
   featuredNewsContent: {
     padding: 16,

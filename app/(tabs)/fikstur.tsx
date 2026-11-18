@@ -1,12 +1,17 @@
 import MatchCard from "@/components/MatchCard";
 import Colors from "@/constants/Colors";
-import { fetchFixtures } from "@/services/fixtureService";
+import {
+  fallbackCuratedFixtures,
+  fetchFixtures,
+  getCachedFixturesSync,
+} from "@/services/fixtureService";
 import { MatchData } from "@/types";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -25,26 +30,52 @@ export default function FiksturScreen() {
 
   const [selectedBranch, setSelectedBranch] = useState("Tümü");
   const [statusTab, setStatusTab] = useState<"upcoming" | "past">("upcoming");
-  const [matches, setMatches] = useState<MatchData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [matches, setMatches] = useState<MatchData[]>(
+    () => getCachedFixturesSync() || [],
+  );
+  const [loading, setLoading] = useState(() => !getCachedFixturesSync());
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      const data = await fetchFixtures();
+  const loadData = useCallback(
+    async (force: boolean = false, silent: boolean = false) => {
+      if (!silent && !getCachedFixturesSync()) setLoading(true);
+      const data = await fetchFixtures(force);
       setMatches(data);
       setLoading(false);
-    };
+      setRefreshing(false);
+    },
+    [],
+  );
 
+  useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
+
+  // Canlı maç varken 20 sn, normalde 60 sn otomatik güncelleme (K2 düzeltmesi)
+  useEffect(() => {
+    const hasLive = matches.some((m) => m.status === "live");
+    const timer = setInterval(
+      () => {
+        loadData(true, true);
+      },
+      hasLive ? 20000 : 60000,
+    );
+    return () => clearInterval(timer);
+  }, [loadData, matches]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadData(true, true);
+  }, [loadData]);
+
+  const isLiveOrUpcoming = (m: MatchData) =>
+    m.status === "live" || (m.homeScore === null && m.awayScore === null);
 
   const upcomingCount = useMemo(() => {
     return matches.filter(
       (m) =>
         (selectedBranch === "Tümü" || m.branch === selectedBranch) &&
-        m.homeScore === null &&
-        m.awayScore === null,
+        isLiveOrUpcoming(m),
     ).length;
   }, [matches, selectedBranch]);
 
@@ -52,28 +83,37 @@ export default function FiksturScreen() {
     return matches.filter(
       (m) =>
         (selectedBranch === "Tümü" || m.branch === selectedBranch) &&
-        (m.homeScore !== null || m.awayScore !== null),
+        !isLiveOrUpcoming(m),
     ).length;
   }, [matches, selectedBranch]);
 
   const filteredMatches = useMemo(() => {
     return matches.filter((match) => {
-      const matchBranch = selectedBranch === "Tümü" || match.branch === selectedBranch;
-      const isUpcoming = match.homeScore === null && match.awayScore === null;
-      const matchStatus = statusTab === "upcoming" ? isUpcoming : !isUpcoming;
+      const matchBranch =
+        selectedBranch === "Tümü" || match.branch === selectedBranch;
+      const upcomingOrLive = isLiveOrUpcoming(match);
+      const matchStatus =
+        statusTab === "upcoming" ? upcomingOrLive : !upcomingOrLive;
       return matchBranch && matchStatus;
     });
   }, [matches, selectedBranch, statusTab]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* 1. GELECEK / BİTEN MAÇLAR SEGMENTLİ SEKMESİ */}
+      {/* 1. GELECEK & CANLI / BİTEN MAÇLAR SEGMENTLİ SEKMESİ */}
       <View style={styles.segmentContainer}>
-        <View style={[styles.segmentWrapper, { backgroundColor: theme.cardBackground }]}>
+        <View
+          style={[
+            styles.segmentWrapper,
+            { backgroundColor: theme.cardBackground },
+          ]}
+        >
           <TouchableOpacity
             style={[
               styles.segmentBtn,
-              statusTab === "upcoming" && { backgroundColor: Colors.brand.navy },
+              statusTab === "upcoming" && {
+                backgroundColor: Colors.brand.navy,
+              },
             ]}
             onPress={() => setStatusTab("upcoming")}
             activeOpacity={0.8}
@@ -81,11 +121,16 @@ export default function FiksturScreen() {
             <Text
               style={[
                 styles.segmentText,
-                { color: statusTab === "upcoming" ? Colors.brand.yellow : theme.secondaryText },
+                {
+                  color:
+                    statusTab === "upcoming"
+                      ? Colors.brand.yellow
+                      : theme.secondaryText,
+                },
                 statusTab === "upcoming" && { fontWeight: "bold" },
               ]}
             >
-              ⏳ Gelecek Maçlar ({upcomingCount})
+              ⏳ Canlı & Gelecek ({upcomingCount})
             </Text>
           </TouchableOpacity>
 
@@ -100,7 +145,12 @@ export default function FiksturScreen() {
             <Text
               style={[
                 styles.segmentText,
-                { color: statusTab === "past" ? Colors.brand.yellow : theme.secondaryText },
+                {
+                  color:
+                    statusTab === "past"
+                      ? Colors.brand.yellow
+                      : theme.secondaryText,
+                },
                 statusTab === "past" && { fontWeight: "bold" },
               ]}
             >
@@ -124,8 +174,12 @@ export default function FiksturScreen() {
                 style={[
                   styles.filterButton,
                   {
-                    backgroundColor: isActive ? Colors.brand.yellow : theme.cardBackground,
-                    borderColor: isActive ? Colors.brand.yellow : "rgba(0,0,0,0.06)",
+                    backgroundColor: isActive
+                      ? Colors.brand.yellow
+                      : theme.cardBackground,
+                    borderColor: isActive
+                      ? Colors.brand.yellow
+                      : "rgba(0,0,0,0.06)",
                   },
                 ]}
                 onPress={() => setSelectedBranch(item)}
@@ -137,7 +191,13 @@ export default function FiksturScreen() {
                     isActive && { fontWeight: "bold" },
                   ]}
                 >
-                  {item === "Futbol" ? "⚽ " : item === "Basketbol" ? "🏀 " : item === "Voleybol" ? "🏐 " : ""}
+                  {item === "Futbol"
+                    ? "⚽ "
+                    : item === "Basketbol"
+                      ? "🏀 "
+                      : item === "Voleybol"
+                        ? "🏐 "
+                        : ""}
                   {item}
                 </Text>
               </TouchableOpacity>
@@ -159,8 +219,19 @@ export default function FiksturScreen() {
         <FlatList
           data={filteredMatches}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 20 }]}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: insets.bottom + 20 },
+          ]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors.brand.navy}
+              colors={[Colors.brand.navy, Colors.brand.yellow]}
+            />
+          }
           renderItem={({ item }) => (
             <View style={styles.cardWrapper}>
               <MatchCard
@@ -177,6 +248,8 @@ export default function FiksturScreen() {
                 date={item.date}
                 time={item.time}
                 stadium={item.stadium}
+                status={item.status}
+                liveClock={item.liveClock}
                 isFullWidth={true}
                 onPress={() => router.push(`/mac/${item.id}` as any)}
               />

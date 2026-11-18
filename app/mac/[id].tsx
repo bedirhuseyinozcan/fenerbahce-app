@@ -1,16 +1,24 @@
 import CloudinaryImage from "@/components/CloudinaryImage";
 import SoccerPitch from "@/components/SoccerPitch";
 import Colors from "@/constants/Colors";
-import { getMatchDetail } from "@/services/matchDetailService";
-import { MatchDetailData, MatchStat } from "@/types";
+import {
+  getPredictionForMatch,
+  savePredictionForMatch,
+} from "@/services/fanEngagementService";
+import {
+  getInstantMatchPreview,
+  getMatchDetail,
+} from "@/services/matchDetailService";
+import { MatchDetailData, MatchStat, PredictionData } from "@/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
   Image,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -31,23 +39,63 @@ export default function MatchDetailScreen() {
   const colorScheme = useColorScheme() ?? "light";
   const theme = Colors[colorScheme];
 
+  const matchKey = id || "1";
+  const initialPreview = getInstantMatchPreview(matchKey);
+
   const [activeTab, setActiveTab] = useState<ActiveTab>("ozet");
-  const [match, setMatch] = useState<MatchDetailData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [match, setMatch] = useState<MatchDetailData | null>(initialPreview);
+  const [loading, setLoading] = useState(!initialPreview);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedTeamLineup, setSelectedTeamLineup] = useState<"home" | "away">(
     "home",
   );
+  const [predHome, setPredHome] = useState<number>(2);
+  const [predAway, setPredAway] = useState<number>(0);
+  const [savedPred, setSavedPred] = useState<PredictionData | null>(null);
+
+  const loadMatch = useCallback(async (isSilent: boolean = false) => {
+    const preview = getInstantMatchPreview(matchKey);
+    if (preview && !isSilent) {
+      setMatch(preview);
+      setLoading(false);
+    } else if (!isSilent) {
+      setLoading(true);
+    }
+    const existingPred = getPredictionForMatch(matchKey);
+    if (existingPred) {
+      setSavedPred(existingPred);
+      setPredHome(existingPred.homeScore);
+      setPredAway(existingPred.awayScore);
+    }
+    const data = await getMatchDetail(matchKey);
+    setMatch(data);
+    setLoading(false);
+    setRefreshing(false);
+  }, [matchKey]);
 
   useEffect(() => {
-    const loadMatch = async () => {
-      setLoading(true);
-      const data = await getMatchDetail(id || "1");
-      setMatch(data);
-      setLoading(false);
-    };
-
     loadMatch();
-  }, [id]);
+  }, [loadMatch]);
+
+  // Canlı maçta 15 saniyede bir, diğer durumlarda 45 saniyede bir otomatik güncelleme (K2 düzeltmesi)
+  useEffect(() => {
+    const intervalMs = match?.status === "live" ? 15000 : 45000;
+    const timer = setInterval(() => {
+      loadMatch(true);
+    }, intervalMs);
+    return () => clearInterval(timer);
+  }, [loadMatch, match?.status]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadMatch(true);
+  }, [loadMatch]);
+
+  const handleSavePrediction = () => {
+    if (!match) return;
+    const saved = savePredictionForMatch(match.id, predHome, predAway);
+    setSavedPred(saved);
+  };
 
   if (loading || !match) {
     return (
@@ -149,7 +197,7 @@ export default function MatchDetailScreen() {
                   style={[styles.statusPill, { backgroundColor: "#E53935" }]}
                 >
                   <Text style={[styles.statusPillText, { color: "#FFFFFF" }]}>
-                    CANLI
+                    ● {match.liveClock || "CANLI"}
                   </Text>
                 </View>
               </View>
@@ -301,6 +349,14 @@ export default function MatchDetailScreen() {
         style={styles.contentScrollView}
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.brand.navy}
+            colors={[Colors.brand.navy, Colors.brand.yellow]}
+          />
+        }
       >
         {/* TAB 1: ÖZET VE ZAMAN ÇİZELGESİ */}
         {activeTab === "ozet" && (
@@ -312,27 +368,31 @@ export default function MatchDetailScreen() {
                 { backgroundColor: theme.cardBackground },
               ]}
             >
-              <View style={styles.infoRow}>
-                <Ionicons
-                  name="person-circle-outline"
-                  size={18}
-                  color={Colors.brand.navy}
-                />
-                <Text
-                  style={[styles.infoLabel, { color: theme.secondaryText }]}
-                >
-                  Başhakem:
-                </Text>
-                <Text style={[styles.infoValue, { color: theme.text }]}>
-                  {match.referee || "Halil Umut Meler"}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.infoDivider,
-                  { backgroundColor: theme.placeholder },
-                ]}
-              />
+              {match.referee ? (
+                <>
+                  <View style={styles.infoRow}>
+                    <Ionicons
+                      name="person-circle-outline"
+                      size={18}
+                      color={Colors.brand.navy}
+                    />
+                    <Text
+                      style={[styles.infoLabel, { color: theme.secondaryText }]}
+                    >
+                      Başhakem:
+                    </Text>
+                    <Text style={[styles.infoValue, { color: theme.text }]}>
+                      {match.referee}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.infoDivider,
+                      { backgroundColor: theme.placeholder },
+                    ]}
+                  />
+                </>
+              ) : null}
               <View style={styles.infoRow}>
                 <Ionicons
                   name="calendar-outline"
@@ -348,6 +408,244 @@ export default function MatchDetailScreen() {
                   {match.date} • {match.time}
                 </Text>
               </View>
+            </View>
+
+            {/* Taraftar Skor Tahmin Kartı (Faz 4: Arkadaş Tahmin Ligi) */}
+            <View
+              style={[
+                styles.infoCard,
+                {
+                  backgroundColor: theme.cardBackground,
+                  borderWidth: 1,
+                  borderColor: "rgba(255, 237, 0, 0.45)",
+                },
+              ]}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 10,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontWeight: "900",
+                    color: Colors.brand.navy,
+                  }}
+                >
+                  🎯 TARAFTAR SKOR TAHMİNİ
+                </Text>
+                {savedPred && (
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "bold",
+                      color: "#00C853",
+                    }}
+                  >
+                    ✓ Tahminin: {savedPred.homeScore} - {savedPred.awayScore}
+                  </Text>
+                )}
+              </View>
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-around",
+                  marginVertical: 6,
+                }}
+              >
+                <View style={{ alignItems: "center", flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "bold",
+                      color: theme.text,
+                      marginBottom: 6,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {match.homeTeam}
+                  </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 10,
+                    }}
+                  >
+                    <TouchableOpacity
+                      disabled={isFinished}
+                      onPress={() => setPredHome((v) => Math.max(0, v - 1))}
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 15,
+                        backgroundColor: Colors.brand.navy,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: Colors.brand.yellow,
+                          fontWeight: "bold",
+                          fontSize: 16,
+                        }}
+                      >
+                        -
+                      </Text>
+                    </TouchableOpacity>
+                    <Text
+                      style={{
+                        fontSize: 20,
+                        fontWeight: "900",
+                        color: theme.text,
+                        minWidth: 24,
+                        textAlign: "center",
+                      }}
+                    >
+                      {predHome}
+                    </Text>
+                    <TouchableOpacity
+                      disabled={isFinished}
+                      onPress={() => setPredHome((v) => v + 1)}
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 15,
+                        backgroundColor: Colors.brand.navy,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: Colors.brand.yellow,
+                          fontWeight: "bold",
+                          fontSize: 16,
+                        }}
+                      >
+                        +
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "900",
+                    color: theme.secondaryText,
+                  }}
+                >
+                  -
+                </Text>
+
+                <View style={{ alignItems: "center", flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "bold",
+                      color: theme.text,
+                      marginBottom: 6,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {match.awayTeam}
+                  </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 10,
+                    }}
+                  >
+                    <TouchableOpacity
+                      disabled={isFinished}
+                      onPress={() => setPredAway((v) => Math.max(0, v - 1))}
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 15,
+                        backgroundColor: Colors.brand.navy,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: Colors.brand.yellow,
+                          fontWeight: "bold",
+                          fontSize: 16,
+                        }}
+                      >
+                        -
+                      </Text>
+                    </TouchableOpacity>
+                    <Text
+                      style={{
+                        fontSize: 20,
+                        fontWeight: "900",
+                        color: theme.text,
+                        minWidth: 24,
+                        textAlign: "center",
+                      }}
+                    >
+                      {predAway}
+                    </Text>
+                    <TouchableOpacity
+                      disabled={isFinished}
+                      onPress={() => setPredAway((v) => v + 1)}
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 15,
+                        backgroundColor: Colors.brand.navy,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: Colors.brand.yellow,
+                          fontWeight: "bold",
+                          fontSize: 16,
+                        }}
+                      >
+                        +
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+
+              {!isFinished && (
+                <TouchableOpacity
+                  onPress={handleSavePrediction}
+                  style={{
+                    marginTop: 10,
+                    backgroundColor: Colors.brand.navy,
+                    paddingVertical: 9,
+                    borderRadius: 10,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: Colors.brand.yellow,
+                      fontSize: 12,
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {savedPred ? "Tahmini Güncelle" : "Skor Tahminini Kaydet"}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Olaylar Zaman Çizelgesi */}
@@ -503,7 +801,9 @@ export default function MatchDetailScreen() {
                 <Text
                   style={[styles.emptyText, { color: theme.secondaryText }]}
                 >
-                  Maç henüz başlamadığı için önemli an bulunmuyor.
+                  {isFinished
+                    ? "Bu karşılaşma için detaylı dakika olay kaydı paylaşılmadı."
+                    : "Maç henüz başlamadığı için önemli an bulunmuyor."}
                 </Text>
               </View>
             )}
@@ -568,100 +868,184 @@ export default function MatchDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            <SoccerPitch
-              lineup={
+            {(() => {
+              const currentLineup =
                 selectedTeamLineup === "home"
                   ? match.homeLineup
-                  : match.awayLineup
-              }
-              teamName={
-                selectedTeamLineup === "home" ? match.homeTeam : match.awayTeam
-              }
-              isFenerbahce={
-                selectedTeamLineup === "home"
-                  ? match.homeTeam.toLowerCase().includes("fenerbah")
-                  : match.awayTeam.toLowerCase().includes("fenerbah")
-              }
-              branch={match.branch}
-            />
+                  : match.awayLineup;
+              const hasConfirmedLineup =
+                currentLineup.isConfirmed !== false &&
+                currentLineup.startingXI &&
+                currentLineup.startingXI.length > 0;
 
-            {/* Yedek Kulübesi Listesi */}
-            <View
-              style={[
-                styles.subsCard,
-                { backgroundColor: theme.cardBackground },
-              ]}
-            >
-              <Text style={[styles.subsHeading, { color: theme.text }]}>
-                YEDEKLER
-              </Text>
-              <View style={styles.subsGrid}>
-                {(selectedTeamLineup === "home"
-                  ? match.homeLineup.substitutes
-                  : match.awayLineup.substitutes
-                ).map((sub) => (
-                  <View key={sub.id} style={styles.subItem}>
-                    <View style={styles.subNumberBadge}>
-                      <Text style={styles.subNumberText}>{sub.number}</Text>
-                    </View>
+              if (!hasConfirmedLineup) {
+                return (
+                  <View
+                    style={[
+                      styles.emptyCard,
+                      {
+                        backgroundColor: theme.cardBackground,
+                        paddingVertical: 36,
+                        paddingHorizontal: 20,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="shirt-outline"
+                      size={36}
+                      color={Colors.brand.navy}
+                    />
                     <Text
-                      style={[styles.subNameText, { color: theme.text }]}
-                      numberOfLines={1}
-                    >
-                      {sub.name}
-                    </Text>
-                    <View
                       style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 4,
+                        color: theme.text,
+                        fontSize: 15,
+                        fontWeight: "bold",
+                        marginTop: 12,
+                        textAlign: "center",
                       }}
                     >
-                      {typeof sub.goals === "number" && sub.goals > 0 ? (
-                        <View style={styles.subEventBadge}>
-                          <Text style={{ fontSize: 10 }}>
-                            ⚽{sub.goals > 1 ? ` ${sub.goals}` : ""}
-                          </Text>
-                        </View>
-                      ) : null}
-                      {typeof sub.assists === "number" && sub.assists > 0 ? (
-                        <View
-                          style={[
-                            styles.subEventBadge,
-                            { backgroundColor: "#FFD700" },
-                          ]}
+                      Resmi İlk 11 Henüz Açıklanmadı
+                    </Text>
+                    <Text
+                      style={[
+                        styles.emptyText,
+                        { color: theme.secondaryText, marginTop: 6 },
+                      ]}
+                    >
+                      Maç kadroları ve saha dizilişi karşılaşmanın başlamasına
+                      yaklaşık 1 saat kala resmi olarak açıklandığında burada
+                      yer alacaktır.
+                    </Text>
+                    {currentLineup.coach ? (
+                      <View
+                        style={{
+                          marginTop: 14,
+                          backgroundColor: "rgba(7, 33, 70, 0.08)",
+                          paddingHorizontal: 14,
+                          paddingVertical: 6,
+                          borderRadius: 12,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: Colors.brand.navy,
+                            fontSize: 12,
+                            fontWeight: "bold",
+                          }}
                         >
-                          <MaterialCommunityIcons
-                            name="shoe-cleat"
-                            size={11}
-                            color="#072146"
-                          />
-                          {sub.assists > 1 ? (
+                          Teknik Direktör: {currentLineup.coach}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              }
+
+              return (
+                <>
+                  <SoccerPitch
+                    lineup={currentLineup}
+                    teamName={
+                      selectedTeamLineup === "home"
+                        ? match.homeTeam
+                        : match.awayTeam
+                    }
+                    isFenerbahce={
+                      selectedTeamLineup === "home"
+                        ? match.homeTeam.toLowerCase().includes("fenerbah")
+                        : match.awayTeam.toLowerCase().includes("fenerbah")
+                    }
+                    branch={match.branch}
+                  />
+
+                  {/* Yedek Kulübesi Listesi */}
+                  {currentLineup.substitutes.length > 0 && (
+                    <View
+                      style={[
+                        styles.subsCard,
+                        { backgroundColor: theme.cardBackground },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.subsHeading, { color: theme.text }]}
+                      >
+                        YEDEKLER
+                      </Text>
+                      <View style={styles.subsGrid}>
+                        {currentLineup.substitutes.map((sub) => (
+                          <View key={sub.id} style={styles.subItem}>
+                            <View style={styles.subNumberBadge}>
+                              <Text style={styles.subNumberText}>
+                                {sub.number}
+                              </Text>
+                            </View>
                             <Text
+                              style={[
+                                styles.subNameText,
+                                { color: theme.text },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {sub.name}
+                            </Text>
+                            <View
                               style={{
-                                fontSize: 9,
-                                fontWeight: "800",
-                                color: "#072146",
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 4,
                               }}
                             >
-                              {sub.assists}
-                            </Text>
-                          ) : null}
-                        </View>
-                      ) : null}
-                      <Text
-                        style={[
-                          styles.subPosText,
-                          { color: theme.secondaryText },
-                        ]}
-                      >
-                        {sub.position}
-                      </Text>
+                              {typeof sub.goals === "number" &&
+                              sub.goals > 0 ? (
+                                <View style={styles.subEventBadge}>
+                                  <Text style={{ fontSize: 10 }}>
+                                    ⚽{sub.goals > 1 ? ` ${sub.goals}` : ""}
+                                  </Text>
+                                </View>
+                              ) : null}
+                              {typeof sub.assists === "number" &&
+                              sub.assists > 0 ? (
+                                <View
+                                  style={[
+                                    styles.subEventBadge,
+                                    { backgroundColor: "#FFD700" },
+                                  ]}
+                                >
+                                  <MaterialCommunityIcons
+                                    name="shoe-cleat"
+                                    size={11}
+                                    color="#072146"
+                                  />
+                                  {sub.assists > 1 ? (
+                                    <Text
+                                      style={{
+                                        fontSize: 9,
+                                        fontWeight: "800",
+                                        color: "#072146",
+                                      }}
+                                    >
+                                      {sub.assists}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                              ) : null}
+                              <Text
+                                style={[
+                                  styles.subPosText,
+                                  { color: theme.secondaryText },
+                                ]}
+                              >
+                                {sub.position}
+                              </Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
                     </View>
-                  </View>
-                ))}
-              </View>
-            </View>
+                  )}
+                </>
+              );
+            })()}
           </View>
         )}
 
@@ -696,61 +1080,83 @@ export default function MatchDetailScreen() {
             </View>
 
             {/* İstatistik Barları */}
-            <View
-              style={[
-                styles.statsListCard,
-                { backgroundColor: theme.cardBackground },
-              ]}
-            >
-              {match.stats.map((stat: MatchStat, index: number) => (
-                <View key={index} style={styles.statRow}>
-                  {/* Sayısal Değerler */}
-                  <View style={styles.statValuesRow}>
-                    <Text
-                      style={[
-                        styles.statValueText,
-                        { color: Colors.brand.navy, fontWeight: "bold" },
-                      ]}
-                    >
-                      {stat.homeValue}
-                    </Text>
-                    <Text style={[styles.statLabelText, { color: theme.text }]}>
-                      {stat.label}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.statValueText,
-                        { color: "#455A64", fontWeight: "bold" },
-                      ]}
-                    >
-                      {stat.awayValue}
-                    </Text>
-                  </View>
+            {match.stats.length > 0 ? (
+              <View
+                style={[
+                  styles.statsListCard,
+                  { backgroundColor: theme.cardBackground },
+                ]}
+              >
+                {match.stats.map((stat: MatchStat, index: number) => (
+                  <View key={index} style={styles.statRow}>
+                    {/* Sayısal Değerler */}
+                    <View style={styles.statValuesRow}>
+                      <Text
+                        style={[
+                          styles.statValueText,
+                          { color: Colors.brand.navy, fontWeight: "bold" },
+                        ]}
+                      >
+                        {stat.homeValue}
+                      </Text>
+                      <Text
+                        style={[styles.statLabelText, { color: theme.text }]}
+                      >
+                        {stat.label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.statValueText,
+                          { color: "#455A64", fontWeight: "bold" },
+                        ]}
+                      >
+                        {stat.awayValue}
+                      </Text>
+                    </View>
 
-                  {/* Görsel Karşılaştırma Barı */}
-                  <View style={styles.statBarTrack}>
-                    <View
-                      style={[
-                        styles.statBarFillHome,
-                        {
-                          width: `${stat.homePercentage}%`,
-                          backgroundColor: Colors.brand.navy,
-                        },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.statBarFillAway,
-                        {
-                          width: `${100 - stat.homePercentage}%`,
-                          backgroundColor: "#90A4AE",
-                        },
-                      ]}
-                    />
+                    {/* Görsel Karşılaştırma Barı */}
+                    <View style={styles.statBarTrack}>
+                      <View
+                        style={[
+                          styles.statBarFillHome,
+                          {
+                            width: `${stat.homePercentage}%`,
+                            backgroundColor: Colors.brand.navy,
+                          },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.statBarFillAway,
+                          {
+                            width: `${100 - stat.homePercentage}%`,
+                            backgroundColor: "#90A4AE",
+                          },
+                        ]}
+                      />
+                    </View>
                   </View>
-                </View>
-              ))}
-            </View>
+                ))}
+              </View>
+            ) : (
+              <View
+                style={[
+                  styles.emptyCard,
+                  { backgroundColor: theme.cardBackground },
+                ]}
+              >
+                <Ionicons
+                  name="stats-chart-outline"
+                  size={32}
+                  color={theme.secondaryText}
+                />
+                <Text
+                  style={[styles.emptyText, { color: theme.secondaryText }]}
+                >
+                  Bu karşılaşma için resmi istatistik verisi henüz yayınlanmadı.
+                </Text>
+              </View>
+            )}
           </View>
         )}
       </ScrollView>

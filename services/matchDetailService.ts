@@ -1,15 +1,22 @@
 import {
   fallbackCuratedFixtures,
   fetchFixtures,
+  formatIstanbulDate,
+  formatIstanbulTime,
+  getCachedFixturesSync,
+  getCachedMatchByIdSync,
+  getEuroLeagueSeasonCode,
 } from "@/services/fixtureService";
 import {
   EventType,
   Lineup,
+  MatchData,
   MatchDetailData,
   MatchEvent,
   MatchStat,
   Player,
 } from "@/types";
+import { safeFetch } from "@/utils/safeFetch";
 
 function getPitchCoordinates(
   formationPlace?: number | string,
@@ -555,7 +562,8 @@ function parseAndTranslateEspnEvent(
 
 export const fallbackFootballLineup: Lineup = {
   formation: "4-2-3-1",
-  coach: "José Mourinho",
+  coach: "Emre Belözoğlu",
+  isConfirmed: true,
   startingXI: [
     {
       id: "fb-31",
@@ -961,30 +969,105 @@ function extractScore(
   return cachedScore ?? null;
 }
 
+const matchDetailCache = new Map<
+  string,
+  { data: MatchDetailData; ts: number }
+>();
+const MATCH_DETAIL_TTL_MS = 15 * 1000;
+
+function getUnconfirmedLineup(branch: string, isTeamFB: boolean): Lineup {
+  let coach = "Teknik Direktör";
+  if (isTeamFB) {
+    if (branch === "Futbol") coach = "Emre Belözoğlu";
+    else if (branch === "Basketbol") coach = "Šarūnas Jasikevičius";
+    else if (branch === "Voleybol") coach = "Marco Fenoglio";
+  }
+  return {
+    formation: "Belirlenmedi",
+    coach,
+    startingXI: [],
+    substitutes: [],
+    isConfirmed: false,
+  };
+}
+
+export function getInstantMatchPreview(
+  matchId: string,
+): MatchDetailData | null {
+  const cachedDetail = matchDetailCache.get(matchId);
+  if (cachedDetail) return cachedDetail.data;
+
+  const match =
+    getCachedMatchByIdSync(matchId) ||
+    fallbackCuratedFixtures.find((f) => f.id === matchId);
+  if (!match) return null;
+
+  const isFbHome = match.homeTeam.toLowerCase().includes("fenerbah");
+  const isLive = match.status === "live";
+  const isFinished =
+    match.status === "finished" ||
+    (!isLive &&
+      match.homeScore !== null &&
+      match.homeScore !== undefined &&
+      match.homeScore !== "" &&
+      match.awayScore !== null &&
+      match.awayScore !== undefined &&
+      match.awayScore !== "");
+
+  const homeLineup = getUnconfirmedLineup(match.branch, isFbHome);
+  const awayLineup = getUnconfirmedLineup(match.branch, !isFbHome);
+
+  return {
+    ...match,
+    status: isLive ? "live" : isFinished ? "finished" : "upcoming",
+    events: [],
+    homeLineup,
+    awayLineup,
+    stats: [],
+  };
+}
+
 export const getMatchDetail = async (
   matchId: string,
 ): Promise<MatchDetailData> => {
-  let cachedMatch: any = null;
-  try {
-    const fixtures = await fetchFixtures();
-    cachedMatch = fixtures.find((f) => f.id === matchId) || null;
-  } catch (err) {
-    console.warn("Cached fixture lookup error in getMatchDetail:", err);
+  const existingDetail = matchDetailCache.get(matchId);
+  if (
+    existingDetail &&
+    Date.now() - existingDetail.ts < MATCH_DETAIL_TTL_MS &&
+    existingDetail.data.status !== "live"
+  ) {
+    return existingDetail.data;
+  }
+
+  let fixturesList = getCachedFixturesSync() || fallbackCuratedFixtures;
+  let cachedMatch: any = getCachedMatchByIdSync(matchId);
+  if (!cachedMatch && !getCachedFixturesSync()) {
+    try {
+      fixturesList = await fetchFixtures();
+      cachedMatch = fixturesList.find((f) => f.id === matchId) || null;
+    } catch {
+      // ignore
+    }
   }
 
   try {
     if (/^\d+$/.test(matchId)) {
       try {
-        let res = await fetch(
-          `https://site.api.espn.com/apis/site/v2/sports/soccer/tur.1/summary?event=${matchId}`,
-        );
-        if (!res.ok) {
-          res = await fetch(
-            `https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/summary?event=${matchId}`,
-          );
-        }
+        const knownSlug = cachedMatch?.leagueSlug;
+        const espnLeagues = knownSlug
+          ? [knownSlug]
+          : ["tur.1", "uefa.champions", "uefa.europa"];
 
-        if (res.ok) {
+        const responses = await Promise.all(
+          espnLeagues.map((slug) =>
+            fetch(
+              `https://site.api.espn.com/apis/site/v2/sports/soccer/${slug}/summary?event=${matchId}`,
+            ).catch(() => null),
+          ),
+        );
+        const res = responses.find((r) => r && r.ok) || null;
+
+        if (res && res.ok) {
           const d = await res.json();
           const comp = d.header?.competitions?.[0];
           if (comp) {
@@ -1004,35 +1087,35 @@ export const getMatchDetail = async (
               (cachedMatch
                 ? cachedMatch.awayTeam.toLowerCase().includes("fenerbah")
                 : false);
-            const homeScore = extractScore(homeComp, cachedMatch?.homeScore);
-            const awayScore = extractScore(awayComp, cachedMatch?.awayScore);
 
             const state = comp.status?.type?.state;
             const isCompleted =
-              comp.status?.type?.completed === true ||
-              state === "post" ||
-              (homeScore !== null &&
-                awayScore !== null &&
-                cachedMatch?.homeScore !== null &&
-                cachedMatch?.homeScore !== undefined);
+              comp.status?.type?.completed === true || state === "post";
+            const isLive = state === "in";
+            const hasScore = isCompleted || isLive;
 
-            const status: "upcoming" | "live" | "finished" = isCompleted
-              ? "finished"
-              : state === "in"
-                ? "live"
+            const homeScore = hasScore
+              ? (extractScore(homeComp, cachedMatch?.homeScore) ?? "0")
+              : null;
+            const awayScore = hasScore
+              ? (extractScore(awayComp, cachedMatch?.awayScore) ?? "0")
+              : null;
+
+            const status: "upcoming" | "live" | "finished" = isLive
+              ? "live"
+              : isCompleted
+                ? "finished"
                 : "upcoming";
 
+            const liveClock = isLive
+              ? comp.status?.type?.shortDetail ||
+                comp.status?.displayClock ||
+                "CANLI"
+              : undefined;
+
             const dateObj = new Date(comp.date);
-            const dateStr = dateObj.toLocaleDateString("tr-TR", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-              weekday: "long",
-            });
-            const timeStr = dateObj.toLocaleTimeString("tr-TR", {
-              hour: "2-digit",
-              minute: "2-digit",
-            });
+            const dateStr = formatIstanbulDate(dateObj);
+            const timeStr = formatIstanbulTime(dateObj);
             const homeRoster = d.rosters?.find(
               (r: any) => r.team?.id === homeComp?.id,
             );
@@ -1083,30 +1166,24 @@ export const getMatchDetail = async (
                   position: mapPositionAbbr(p.position?.displayName),
                 }));
 
-                return {
-                  formation: rosterData.formation || "4-2-3-1",
-                  coach: isTeamFB
-                    ? "José Mourinho"
-                    : rosterData.coach?.[0]?.displayName || "Teknik Direktör",
-                  startingXI:
-                    startingXI.length > 0
-                      ? startingXI
-                      : isTeamFB
-                        ? fallbackFootballLineup.startingXI
-                        : generateOpponentLineup("Futbol", teamName).startingXI,
-                  substitutes:
-                    substitutes.length > 0
-                      ? substitutes
-                      : isTeamFB
-                        ? fallbackFootballLineup.substitutes
-                        : generateOpponentLineup("Futbol", teamName)
-                            .substitutes,
-                };
+                const apiCoachName = isTeamFB
+                  ? "Emre Belözoğlu"
+                  : rosterData.coach?.[0]?.displayName ||
+                    rosterData.coach?.[0]?.fullName ||
+                    "Teknik Direktör";
+
+                if (startingXI.length > 0) {
+                  return {
+                    formation: rosterData.formation || "4-2-3-1",
+                    coach: apiCoachName,
+                    startingXI,
+                    substitutes,
+                    isConfirmed: true,
+                  };
+                }
               }
 
-              return isTeamFB
-                ? fallbackFootballLineup
-                : generateOpponentLineup("Futbol", teamName);
+              return getUnconfirmedLineup("Futbol", isTeamFB);
             };
 
             const homeTeamName = isFBHome
@@ -1232,6 +1309,12 @@ export const getMatchDetail = async (
                 }
               });
             }
+
+            const refereeName =
+              d.gameInfo?.officials?.[0]?.displayName ||
+              d.gameInfo?.officials?.[0]?.fullName ||
+              undefined;
+
             const leagueObj = d.header?.league || {};
             const leagueName = (
               leagueObj.name ||
@@ -1313,7 +1396,7 @@ export const getMatchDetail = async (
               roundStr = cachedMatch?.round || "Lig Maçı";
             }
 
-            return {
+            const espnDetail: MatchDetailData = {
               id: matchId,
               branch: "Futbol",
               competition,
@@ -1334,40 +1417,16 @@ export const getMatchDetail = async (
                   ? "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi"
                   : `${homeTeamName} Stadyumu`),
               status,
-              referee: "Resmi Hakem",
+              liveClock,
+              referee: refereeName,
               events,
               homeLineup,
               awayLineup,
-              stats:
-                stats.length > 0
-                  ? stats
-                  : [
-                      {
-                        label: "Topla Oynama",
-                        homeValue: "%55",
-                        awayValue: "%45",
-                        homePercentage: 55,
-                      },
-                      {
-                        label: "Toplam Şut",
-                        homeValue: "14",
-                        awayValue: "8",
-                        homePercentage: 64,
-                      },
-                      {
-                        label: "İsabetli Şut",
-                        homeValue: "7",
-                        awayValue: "3",
-                        homePercentage: 70,
-                      },
-                      {
-                        label: "Korner",
-                        homeValue: "6",
-                        awayValue: "4",
-                        homePercentage: 60,
-                      },
-                    ],
+              // K4 düzeltmesi: Gerçek istatistik yoksa sahte veri üretme, boş dizi dön
+              stats,
             };
+            matchDetailCache.set(matchId, { data: espnDetail, ts: Date.now() });
+            return espnDetail;
           }
         }
       } catch (err) {
@@ -1378,10 +1437,11 @@ export const getMatchDetail = async (
     if (matchId.startsWith("el-")) {
       const gameCode = parseInt(matchId.replace("el-", ""), 10);
       try {
-        const euroRes = await fetch(
-          "https://api-live.euroleague.net/v2/competitions/E/seasons/E2026/games",
+        const seasonCode = getEuroLeagueSeasonCode();
+        const euroRes = await safeFetch(
+          `https://api-live.euroleague.net/v2/competitions/E/seasons/${seasonCode}/games`,
         );
-        if (euroRes.ok) {
+        if (euroRes && euroRes.ok) {
           const euroData = await euroRes.json();
           const game = euroData.data?.find((g: any) => g.gameCode === gameCode);
           if (game) {
@@ -1426,14 +1486,24 @@ export const getMatchDetail = async (
                 cachedMatch?.awayLogo ||
                 "logos/euroleague";
 
-            const homeScore = game.played
-              ? String(game.local?.score)
+            const gameState = String(
+              game.gameStatus || game.status || "",
+            ).toLowerCase();
+            const isLive =
+              gameState === "live" ||
+              gameState === "playing" ||
+              (!game.played &&
+                ((game.local?.score ?? 0) > 0 || (game.road?.score ?? 0) > 0));
+            const isCompleted = Boolean(game.played) && !isLive;
+            const hasScore = isCompleted || isLive;
+
+            const homeScore = hasScore
+              ? String(game.local?.score ?? 0)
               : (cachedMatch?.homeScore ?? null);
-            const awayScore = game.played
-              ? String(game.road?.score)
+            const awayScore = hasScore
+              ? String(game.road?.score ?? 0)
               : (cachedMatch?.awayScore ?? null);
-            const isCompleted =
-              game.played || (homeScore !== null && awayScore !== null);
+
             const stadium =
               game.venue?.name ||
               cachedMatch?.stadium ||
@@ -1441,10 +1511,51 @@ export const getMatchDetail = async (
                 ? "Ülker Spor ve Etkinlik Salonu"
                 : `${homeTeam} Salonu`);
 
-            return {
+            // K4 düzeltmesi: Gerçek çeyrek skorlarından anlamlı istatistik üret, uydurma oyuncu olayı ekleme
+            const realBasketballStats: MatchStat[] = [];
+            if (hasScore && game.local?.partials && game.road?.partials) {
+              const lp = game.local.partials;
+              const rp = game.road.partials;
+              const quarters = [
+                {
+                  label: "1. Çeyrek Skoru",
+                  h: lp.partials1 || 0,
+                  a: rp.partials1 || 0,
+                },
+                {
+                  label: "2. Çeyrek Skoru",
+                  h: lp.partials2 || 0,
+                  a: rp.partials2 || 0,
+                },
+                {
+                  label: "3. Çeyrek Skoru",
+                  h: lp.partials3 || 0,
+                  a: rp.partials3 || 0,
+                },
+                {
+                  label: "4. Çeyrek Skoru",
+                  h: lp.partials4 || 0,
+                  a: rp.partials4 || 0,
+                },
+              ];
+              quarters.forEach((q) => {
+                if (q.h > 0 || q.a > 0) {
+                  const total = q.h + q.a;
+                  realBasketballStats.push({
+                    label: q.label,
+                    homeValue: String(q.h),
+                    awayValue: String(q.a),
+                    homePercentage:
+                      total > 0 ? Math.round((q.h / total) * 100) : 50,
+                  });
+                }
+              });
+            }
+
+            const euroDetail: MatchDetailData = {
               id: matchId,
               branch: "Basketbol",
-              competition: "EuroLeague",
+              competition: "Turkish Airlines EuroLeague",
               round: game.roundName || `Round ${game.round}`,
               homeTeam,
               homeLogo,
@@ -1452,97 +1563,33 @@ export const getMatchDetail = async (
               awayTeam,
               awayLogo,
               awayScore,
-              date: dateObj.toLocaleDateString("tr-TR", {
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-                weekday: "long",
-              }),
-              time: dateObj.toLocaleTimeString("tr-TR", {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
+              date: formatIstanbulDate(dateObj),
+              time: formatIstanbulTime(dateObj),
               stadium,
-              status: isCompleted ? "finished" : "upcoming",
-              quarterScores:
-                qScores.length > 0
-                  ? qScores
-                  : ["1.Ç: 21-19", "2.Ç: 22-18", "3.Ç: 24-20", "4.Ç: 22-21"],
-              events: game.played
-                ? [
-                    {
-                      id: "e1",
-                      minute: 4,
-                      type: "basket-3pt",
-                      team: "home",
-                      player: "Shane Larkin",
-                      detail: "3 Sayılık Basket",
-                    },
-                    {
-                      id: "e2",
-                      minute: 8,
-                      type: "basket-2pt",
-                      team: "home",
-                      player: "Wade Baldwin IV",
-                      detail: "Turnike Basket",
-                    },
-                    {
-                      id: "e3",
-                      minute: 15,
-                      type: "basket-3pt",
-                      team: "away",
-                      player: "Rakip Gard",
-                      detail: "3 Sayılık Basket",
-                    },
-                    {
-                      id: "e4",
-                      minute: 28,
-                      type: "basket-2pt",
-                      team: "home",
-                      player: "Sertaç Şanlı",
-                      detail: "Smaç Basket",
-                    },
-                  ]
-                : [],
-              homeLineup: isFBLocal
-                ? basketballFBLineup
-                : generateOpponentLineup("Basketbol", homeTeam),
-              awayLineup: isFBLocal
-                ? generateOpponentLineup("Basketbol", awayTeam)
-                : basketballFBLineup,
-              stats: [
-                {
-                  label: "2 Sayı %",
-                  homeValue: "%56",
-                  awayValue: "%48",
-                  homePercentage: 54,
-                },
-                {
-                  label: "3 Sayı %",
-                  homeValue: "%42",
-                  awayValue: "%35",
-                  homePercentage: 55,
-                },
-                {
-                  label: "Toplam Ribaund",
-                  homeValue: "38",
-                  awayValue: "31",
-                  homePercentage: 55,
-                },
-                {
-                  label: "Asist",
-                  homeValue: "21",
-                  awayValue: "16",
-                  homePercentage: 57,
-                },
-                {
-                  label: "Top Çalma",
-                  homeValue: "8",
-                  awayValue: "5",
-                  homePercentage: 62,
-                },
-              ],
+              status: isLive ? "live" : isCompleted ? "finished" : "upcoming",
+              liveClock: isLive ? "CANLI" : undefined,
+              quarterScores: qScores.length > 0 ? qScores : undefined,
+              events: [],
+              homeLineup: hasScore
+                ? isFBLocal
+                  ? { ...basketballFBLineup, isConfirmed: true }
+                  : {
+                      ...generateOpponentLineup("Basketbol", homeTeam),
+                      isConfirmed: true,
+                    }
+                : getUnconfirmedLineup("Basketbol", isFBLocal),
+              awayLineup: hasScore
+                ? isFBLocal
+                  ? {
+                      ...generateOpponentLineup("Basketbol", awayTeam),
+                      isConfirmed: true,
+                    }
+                  : { ...basketballFBLineup, isConfirmed: true }
+                : getUnconfirmedLineup("Basketbol", !isFBLocal),
+              stats: realBasketballStats,
             };
+            matchDetailCache.set(matchId, { data: euroDetail, ts: Date.now() });
+            return euroDetail;
           }
         }
       } catch (err) {
@@ -1550,19 +1597,38 @@ export const getMatchDetail = async (
       }
     }
 
-    const fixtures = await fetchFixtures();
+    const emptyFallbackMatch: MatchData = {
+      id: matchId,
+      branch: "Futbol",
+      competition: "Fenerbahçe Maçı",
+      round: "",
+      homeTeam: "Fenerbahçe",
+      homeLogo: "fener.png",
+      homeScore: null,
+      awayTeam: "Rakip",
+      awayLogo: "",
+      awayScore: null,
+      date: "",
+      time: "",
+      stadium: "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi",
+      status: "upcoming",
+    };
+
     const match =
       cachedMatch ||
-      fixtures.find((f) => f.id === matchId) ||
-      fallbackCuratedFixtures[0];
+      fixturesList.find((f) => f.id === matchId) ||
+      emptyFallbackMatch;
     const isFbHome = match.homeTeam.toLowerCase().includes("fenerbah");
+    const isLive = match.status === "live";
     const isFinished =
-      match.homeScore !== null &&
-      match.homeScore !== undefined &&
-      match.homeScore !== "" &&
-      match.awayScore !== null &&
-      match.awayScore !== undefined &&
-      match.awayScore !== "";
+      match.status === "finished" ||
+      (!isLive &&
+        match.homeScore !== null &&
+        match.homeScore !== undefined &&
+        match.homeScore !== "" &&
+        match.awayScore !== null &&
+        match.awayScore !== undefined &&
+        match.awayScore !== "");
 
     const stadium =
       match.stadium ||
@@ -1579,70 +1645,14 @@ export const getMatchDetail = async (
       isFbHome ? match.awayTeam : match.homeTeam,
     );
 
-    const fallbackEvents: MatchEvent[] =
-      isFinished && match.branch === "Futbol"
-        ? [
-            {
-              id: "e1",
-              minute: 18,
-              type: "goal",
-              team: isFbHome ? "home" : "away",
-              player: "Vedat Muriqi",
-              detail: "Kafa Vuruşu • Asist: Archie Brown",
-            },
-            {
-              id: "e2",
-              minute: 44,
-              type: "goal",
-              team: isFbHome ? "home" : "away",
-              player: "Mason Greenwood",
-              detail: "Ceza Sahası Dışı Şut • Asist: Vedat Muriqi",
-            },
-            {
-              id: "e3",
-              minute: 61,
-              type: "yellow-card",
-              team: isFbHome ? "home" : "away",
-              player: "Milan Škriniar",
-              detail: "Sert Müdahale",
-            },
-            {
-              id: "e4",
-              minute: 76,
-              type: "goal",
-              team: isFbHome ? "home" : "away",
-              player: "Kerem Aktürkoğlu",
-              detail: "Plase Vuruş",
-            },
-          ]
-        : [];
-
-    const finalHomeLineup: Lineup = JSON.parse(
-      JSON.stringify(isFbHome ? fbLineup : oppLineup),
-    );
-    const finalAwayLineup: Lineup = JSON.parse(
-      JSON.stringify(isFbHome ? oppLineup : fbLineup),
-    );
-
-    if (fallbackEvents.length > 0) {
-      const fbGoalsAndAssists: {
-        team: "home" | "away";
-        scorer: string;
-        assister?: string;
-      }[] = [];
-      fallbackEvents.forEach((ev) => {
-        if (ev.type === "goal") {
-          const assistMatch = ev.detail?.match(/Asist:\s*([^•,]+)/i);
-          fbGoalsAndAssists.push({
-            team: ev.team,
-            scorer: ev.player,
-            assister: assistMatch ? assistMatch[1].trim() : undefined,
-          });
-        }
-      });
-      attachStatsToLineup(finalHomeLineup, "home", fbGoalsAndAssists);
-      attachStatsToLineup(finalAwayLineup, "away", fbGoalsAndAssists);
-    }
+    const finalHomeLineup: Lineup =
+      isFinished || isLive
+        ? JSON.parse(JSON.stringify(isFbHome ? fbLineup : oppLineup))
+        : getUnconfirmedLineup(match.branch, isFbHome);
+    const finalAwayLineup: Lineup =
+      isFinished || isLive
+        ? JSON.parse(JSON.stringify(isFbHome ? oppLineup : fbLineup))
+        : getUnconfirmedLineup(match.branch, !isFbHome);
 
     return {
       id: match.id,
@@ -1658,40 +1668,32 @@ export const getMatchDetail = async (
       date: match.date,
       time: match.time,
       stadium,
-      status: isFinished ? "finished" : "upcoming",
-      referee: match.branch === "Futbol" ? "Resmi Hakem" : "Baş Hakem",
-      quarterScores:
-        match.branch === "Basketbol"
-          ? ["1.Ç: 22-19", "2.Ç: 20-21", "3.Ç: 24-20", "4.Ç: 21-18"]
-          : undefined,
-      events: fallbackEvents,
+      status: isLive ? "live" : isFinished ? "finished" : "upcoming",
+      liveClock: match.liveClock,
+      referee: undefined,
+      quarterScores: undefined,
+      events: [],
       homeLineup: finalHomeLineup,
       awayLineup: finalAwayLineup,
-      stats: [
-        {
-          label: "Topla Oynama",
-          homeValue: "%57",
-          awayValue: "%43",
-          homePercentage: 57,
-        },
-        {
-          label: "Toplam Şut",
-          homeValue: "16",
-          awayValue: "9",
-          homePercentage: 64,
-        },
-        {
-          label: "İsabetli Şut",
-          homeValue: "8",
-          awayValue: "3",
-          homePercentage: 73,
-        },
-        { label: "Korner", homeValue: "7", awayValue: "4", homePercentage: 64 },
-      ],
+      stats: [],
     };
-  } catch (error) {
-    console.error("Match detail fetch error:", error);
-    const fbMatch = cachedMatch || fallbackCuratedFixtures[0];
+  } catch {
+    const fbMatch: MatchData = cachedMatch || {
+      id: matchId,
+      branch: "Futbol",
+      competition: "Fenerbahçe Maçı",
+      round: "",
+      homeTeam: "Fenerbahçe",
+      homeLogo: "fener.png",
+      homeScore: null,
+      awayTeam: "Rakip",
+      awayLogo: "",
+      awayScore: null,
+      date: "",
+      time: "",
+      stadium: "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi",
+      status: "upcoming",
+    };
     const isHomeFb = fbMatch.homeTeam.toLowerCase().includes("fenerbah");
     const isFinished =
       fbMatch.homeScore !== null &&
@@ -1723,12 +1725,8 @@ export const getMatchDetail = async (
       stadium,
       status: isFinished ? "finished" : "upcoming",
       events: [],
-      homeLineup: isHomeFb
-        ? fallbackFootballLineup
-        : generateOpponentLineup(fbMatch.branch, fbMatch.homeTeam),
-      awayLineup: isHomeFb
-        ? generateOpponentLineup(fbMatch.branch, fbMatch.awayTeam)
-        : fallbackFootballLineup,
+      homeLineup: getUnconfirmedLineup(fbMatch.branch, isHomeFb),
+      awayLineup: getUnconfirmedLineup(fbMatch.branch, !isHomeFb),
       stats: [],
     };
   }

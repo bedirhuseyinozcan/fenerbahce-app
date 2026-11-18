@@ -1,4 +1,5 @@
-import { Athlete } from "@/types";
+import { Athlete, AthleteBranch } from "@/types";
+import { safeFetch } from "@/utils/safeFetch";
 export const fallbackAthletes: Athlete[] = [
   // FUTBOL A TAKIMI (2026-2027 SEZONU)
   {
@@ -408,19 +409,210 @@ export const fallbackAthletes: Athlete[] = [
     country: "Türkiye",
     branch: "Voleybol",
   },
+  // KADIN BASKETBOL (Fenerbahçe Opet)
+  {
+    id: "kb-10",
+    number: 10,
+    name: "Alperi Onar",
+    position: "Oyun Kurucu (Kaptan)",
+    category: "Gard",
+    country: "Türkiye",
+    branch: "Kadın Basketbol",
+  },
+  {
+    id: "kb-2",
+    number: 2,
+    name: "Sevgi Uzun",
+    position: "Oyun Kurucu",
+    category: "Gard",
+    country: "Türkiye",
+    branch: "Kadın Basketbol",
+  },
+  {
+    id: "kb-23",
+    number: 23,
+    name: "Kayla McBride",
+    position: "Şutör Gard",
+    category: "Gard",
+    country: "ABD",
+    branch: "Kadın Basketbol",
+  },
+  {
+    id: "kb-5",
+    number: 5,
+    name: "Gabby Williams",
+    position: "Kısa Forvet",
+    category: "Forvet/Pivot",
+    country: "Fransa/ABD",
+    branch: "Kadın Basketbol",
+  },
+  {
+    id: "kb-11",
+    number: 11,
+    name: "Emma Meesseman",
+    position: "Uzun Forvet / Pivot",
+    category: "Forvet/Pivot",
+    country: "Belçika",
+    branch: "Kadın Basketbol",
+  },
+  {
+    id: "kb-33",
+    number: 33,
+    name: "Tina Charles",
+    position: "Pivot",
+    category: "Forvet/Pivot",
+    country: "ABD",
+    branch: "Kadın Basketbol",
+  },
+  {
+    id: "kb-4",
+    number: 4,
+    name: "Olcay Çakır Turgut",
+    position: "Oyun Kurucu",
+    category: "Gard",
+    country: "Türkiye",
+    branch: "Kadın Basketbol",
+  },
+  // ERKEK VOLEYBOL (Fenerbahçe Medicana Erkek Voleybol)
+  {
+    id: "ev-1",
+    number: 1,
+    name: "Kaan Gürbüz",
+    position: "Pasör Çaprazı",
+    category: "Smaçör",
+    country: "Türkiye",
+    branch: "Erkek Voleybol",
+  },
+  {
+    id: "ev-9",
+    number: 9,
+    name: "Earvin N'Gapeth",
+    position: "Smaçör",
+    category: "Smaçör",
+    country: "Fransa",
+    branch: "Erkek Voleybol",
+  },
+  {
+    id: "ev-14",
+    number: 14,
+    name: "Dražen Luburić",
+    position: "Pasör Çaprazı",
+    category: "Smaçör",
+    country: "Sırbistan",
+    branch: "Erkek Voleybol",
+  },
+  {
+    id: "ev-11",
+    number: 11,
+    name: "Fabian Drzyzga",
+    position: "Pasör",
+    category: "Pasör",
+    country: "Polonya",
+    branch: "Erkek Voleybol",
+  },
+  {
+    id: "ev-7",
+    number: 7,
+    name: "Osman Çağatay Durmaz",
+    position: "Orta Oyuncu",
+    category: "Orta Oyuncu",
+    country: "Türkiye",
+    branch: "Erkek Voleybol",
+  },
+  {
+    id: "ev-5",
+    number: 5,
+    name: "Burak Güngör",
+    position: "Libero",
+    category: "Libero",
+    country: "Türkiye",
+    branch: "Erkek Voleybol",
+  },
+  // KADIN FUTBOL (Fenerbahçe Petrol Ofisi)
+  {
+    id: "kf-1",
+    number: 1,
+    name: "Göknur Güleryüz",
+    position: "Kaleci",
+    category: "Kaleci",
+    country: "Türkiye",
+    branch: "Kadın Futbol",
+  },
+  {
+    id: "kf-5",
+    number: 5,
+    name: "Yaşam Göksu",
+    position: "Stoper (Kaptan)",
+    category: "Defans",
+    country: "Türkiye",
+    branch: "Kadın Futbol",
+  },
+  {
+    id: "kf-10",
+    number: 10,
+    name: "Busem Şeker",
+    position: "On Numara",
+    category: "Orta Saha",
+    country: "Türkiye",
+    branch: "Kadın Futbol",
+  },
+  {
+    id: "kf-8",
+    number: 8,
+    name: "Ece Türkoğlu",
+    position: "Merkez Orta Saha",
+    category: "Orta Saha",
+    country: "Türkiye",
+    branch: "Kadın Futbol",
+  },
+  {
+    id: "kf-9",
+    number: 9,
+    name: "Yağmur Uraz",
+    position: "Santrafor",
+    category: "Forvet",
+    country: "Türkiye",
+    branch: "Kadın Futbol",
+  },
+  {
+    id: "kf-7",
+    number: 7,
+    name: "Zeynep Kerimoğlu",
+    position: "Kanat Forvet",
+    category: "Forvet",
+    country: "Türkiye",
+    branch: "Kadın Futbol",
+  },
 ];
 
+const athletesCache = new Map<string, { data: Athlete[]; ts: number }>();
+const ATHLETES_TTL_MS = 5 * 60 * 1000;
+
+export function getFallbackAthletesByBranch(
+  branch: AthleteBranch | "Tümü" = "Tümü",
+): Athlete[] {
+  const cached = athletesCache.get(branch);
+  if (cached) return cached.data;
+  if (branch === "Tümü") return fallbackAthletes;
+  return fallbackAthletes.filter((a) => a.branch === branch);
+}
+
 export const fetchAthletes = async (
-  branch: "Futbol" | "Basketbol" | "Voleybol" | "Tümü" = "Tümü",
+  branch: AthleteBranch | "Tümü" = "Tümü",
 ): Promise<Athlete[]> => {
+  const cached = athletesCache.get(branch);
+  if (cached && Date.now() - cached.ts < ATHLETES_TTL_MS) {
+    return cached.data;
+  }
+
   const list: Athlete[] = [];
 
   if (branch === "Futbol" || branch === "Tümü") {
     try {
       const res = await fetch(
         "https://site.api.espn.com/apis/site/v2/sports/soccer/tur.1/teams/436/roster",
-      );
-      if (res.ok) {
+      ).catch(() => null);
+      if (res && res.ok) {
         const data = await res.json();
         if (Array.isArray(data.athletes) && data.athletes.length > 0) {
           data.athletes.forEach((a: any) => {
@@ -480,10 +672,10 @@ export const fetchAthletes = async (
   if (branch === "Basketbol" || branch === "Tümü") {
     let wikiFound = false;
     try {
-      const res = await fetch(
+      const res = await safeFetch(
         "https://tr.wikipedia.org/api/rest_v1/page/html/Fenerbah%C3%A7e_(basketbol_tak%C4%B1m%C4%B1)",
       );
-      if (res.ok) {
+      if (res && res.ok) {
         const html = await res.text();
         const rowsB = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
 
@@ -549,10 +741,10 @@ export const fetchAthletes = async (
   if (branch === "Voleybol" || branch === "Tümü") {
     let wikiVolleyFound = false;
     try {
-      const res = await fetch(
+      const res = await safeFetch(
         "https://tr.wikipedia.org/api/rest_v1/page/html/Fenerbah%C3%A7e_(kad%C4%B1n_voleybol_tak%C4%B1m%C4%B1)",
       );
-      if (res.ok) {
+      if (res && res.ok) {
         const html = await res.text();
         const rowsV = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
 
@@ -607,8 +799,19 @@ export const fetchAthletes = async (
     }
   }
 
-  if (branch !== "Tümü") {
-    return list.filter((a) => a.branch === branch);
+  const extraBranches: AthleteBranch[] = [
+    "Kadın Basketbol",
+    "Erkek Voleybol",
+    "Kadın Futbol",
+  ];
+  for (const eb of extraBranches) {
+    if (branch === eb || branch === "Tümü") {
+      list.push(...fallbackAthletes.filter((a) => a.branch === eb));
+    }
   }
-  return list;
+
+  const finalResult =
+    branch !== "Tümü" ? list.filter((a) => a.branch === branch) : list;
+  athletesCache.set(branch, { data: finalResult, ts: Date.now() });
+  return finalResult;
 };

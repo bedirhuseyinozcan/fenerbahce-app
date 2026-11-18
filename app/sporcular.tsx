@@ -1,6 +1,9 @@
 import Colors from "@/constants/Colors";
-import { fetchAthletes } from "@/services/athleteService";
-import { Athlete } from "@/types";
+import {
+  fetchAthletes,
+  getFallbackAthletesByBranch,
+} from "@/services/athleteService";
+import { Athlete, AthleteBranch } from "@/types";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image } from "expo-image";
 import { Stack, useRouter } from "expo-router";
@@ -17,36 +20,48 @@ import {
   View,
 } from "react-native";
 
-type BranchType = "Futbol" | "Basketbol" | "Voleybol";
+const BRANCH_TABS: { key: AthleteBranch; label: string; emoji: string }[] = [
+  { key: "Futbol", label: "Futbol", emoji: "⚽" },
+  { key: "Basketbol", label: "Basketbol", emoji: "🏀" },
+  { key: "Voleybol", label: "Kadın Voleybol", emoji: "🏐" },
+  { key: "Kadın Basketbol", label: "Kadın Basket", emoji: "🏀" },
+  { key: "Erkek Voleybol", label: "Erkek Voleybol", emoji: "🏐" },
+  { key: "Kadın Futbol", label: "Kadın Futbol", emoji: "⚽" },
+];
 
 export default function SporcularScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? "light";
   const theme = Colors[colorScheme];
 
-  const [selectedBranch, setSelectedBranch] = useState<BranchType>("Futbol");
+  const [selectedBranch, setSelectedBranch] = useState<AthleteBranch>("Futbol");
   const [selectedCategory, setSelectedCategory] = useState<string>("Tümü");
   const [searchQuery, setSearchQuery] = useState("");
-  const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [athletes, setAthletes] = useState<Athlete[]>(() =>
+    getFallbackAthletesByBranch("Futbol"),
+  );
+  const [loading, setLoading] = useState(false);
   const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null);
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const data = await fetchAthletes(selectedBranch);
-      setAthletes(data);
-      setLoading(false);
-      setSelectedCategory("Tümü");
+    setAthletes(getFallbackAthletesByBranch(selectedBranch));
+    setSelectedCategory("Tümü");
+    let active = true;
+    fetchAthletes(selectedBranch).then((data) => {
+      if (active && data.length > 0) {
+        setAthletes(data);
+      }
+    });
+    return () => {
+      active = false;
     };
-    load();
   }, [selectedBranch]);
 
   const categoryFilters = useMemo(() => {
-    if (selectedBranch === "Futbol") {
+    if (selectedBranch === "Futbol" || selectedBranch === "Kadın Futbol") {
       return ["Tümü", "Kaleci", "Defans", "Orta Saha", "Forvet"];
     }
-    if (selectedBranch === "Basketbol") {
+    if (selectedBranch === "Basketbol" || selectedBranch === "Kadın Basketbol") {
       return ["Tümü", "Gard", "Forvet/Pivot"];
     }
     return ["Tümü", "Smaçör", "Pasör", "Orta Oyuncu", "Libero"];
@@ -67,7 +82,7 @@ export default function SporcularScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen
         options={{
-          title: "A Takım Kadroları",
+          title: "Tüm Branş Kadroları",
           headerStyle: { backgroundColor: Colors.brand.navy },
           headerTintColor: Colors.brand.yellow,
           headerBackTitle: "Geri",
@@ -76,32 +91,41 @@ export default function SporcularScreen() {
       <View
         style={[styles.branchTabs, { backgroundColor: theme.cardBackground }]}
       >
-        {(["Futbol", "Basketbol", "Voleybol"] as BranchType[]).map((b) => {
-          const isActive = selectedBranch === b;
-          return (
-            <TouchableOpacity
-              key={b}
-              style={[
-                styles.branchTabButton,
-                isActive && { borderBottomColor: Colors.brand.yellow },
-              ]}
-              onPress={() => setSelectedBranch(b)}
-            >
-              <Text style={{ fontSize: 16, marginRight: 6 }}>
-                {b === "Futbol" ? "⚽" : b === "Basketbol" ? "🏀" : "🏐"}
-              </Text>
-              <Text
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={BRANCH_TABS}
+          keyExtractor={(item) => item.key}
+          contentContainerStyle={{ paddingHorizontal: 8 }}
+          renderItem={({ item }) => {
+            const isActive = selectedBranch === item.key;
+            return (
+              <TouchableOpacity
                 style={[
-                  styles.branchTabText,
-                  { color: isActive ? Colors.brand.navy : theme.secondaryText },
-                  isActive && styles.branchTabTextActive,
+                  styles.branchTabButton,
+                  { paddingHorizontal: 14 },
+                  isActive && { borderBottomColor: Colors.brand.yellow },
                 ]}
+                onPress={() => setSelectedBranch(item.key)}
               >
-                {b}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+                <Text style={{ fontSize: 15, marginRight: 5 }}>
+                  {item.emoji}
+                </Text>
+                <Text
+                  style={[
+                    styles.branchTabText,
+                    {
+                      color: isActive ? Colors.brand.navy : theme.secondaryText,
+                    },
+                    isActive && styles.branchTabTextActive,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
+        />
       </View>
       <View
         style={[

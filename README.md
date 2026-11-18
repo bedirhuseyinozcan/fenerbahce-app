@@ -36,7 +36,7 @@
 ### 👥 3. Futbol Takımı & Kadro
 * **Pozisyona Göre Filtreleme:** Kaleciler, Defans, Orta Saha ve Forvet hatları.
 * **Detaylı Oyuncu Bilgileri:** Forma numarası, uyruk ve mevki detayları.
-* **Teknik Heyet:** Teknik Direktör José Mourinho ve ekibi.
+* **Teknik Heyet:** Teknik Direktör Emre Belözoğlu ve ekibi.
 
 ### 🎵 4. Marşlar & Besteler (Cloud CDN Audio Player)
 * **Yeni Nesil `expo-audio` Motoru:** Expo SDK 57'nin en güncel yerel ses altyapısı.
@@ -76,26 +76,31 @@
 
 ```text
 fenerbahce-app/
-├── app/                      # Expo Router sayfa ve tab navigasyonu
-│   ├── (tabs)/               # Alt menü sekmeleri
-│   │   ├── index.tsx         # Ana Sayfa (Haberler, Geri sayım, Puan özeti)
-│   │   ├── maclar.tsx        # Fikstür & Canlı Puan Durumu
-│   │   ├── kadro.tsx         # Takım Kadrosu & Oyuncu Profilleri
-│   │   ├── marslar.tsx       # Marşlar & Besteler (CDN Ses Oynatıcı)
-│   │   ├── daha-fazla.tsx    # Fenerium, Tarihçe, Kulüp Bağlantıları
-│   │   └── _layout.tsx       # Tab Bar yapılandırması
-│   ├── haberler.tsx          # Detaylı haberler akış ekranı
-│   └── _layout.tsx           # Kök Layout & Tema Sağlayıcı
-├── assets/                   # Vektörel ikonlar ve görseller
-│   └── audio/                # Yerel ses rehberi
-├── constants/                # Renk paletleri (Colors.ts - Sarı & Lacivert)
-├── data/                     # Sabit veriler ve marş koleksiyonu (marslarData.ts)
-├── services/                 # API Entegrasyonları (ESPN, TRT Spor RSS)
-│   ├── standingsService.ts   # Canlı puan tablosu servisi
-│   └── newsService.ts        # Canlı spor haberleri servisi
-├── types/                    # TypeScript model ve arayüz tanımları
-├── app.json                  # Expo ve uygulama yapılandırma dosyası
-└── tsconfig.json             # TypeScript kuralları
+├── app/                          # Expo Router sayfa ve tab navigasyonu
+│   ├── (tabs)/                   # Alt menü sekmeleri
+│   │   ├── index.tsx             # Ana Sayfa (Canlı Skor, Geri Sayım, Tarihte Bugün, Puan Özeti)
+│   │   ├── fikstur.tsx           # Fikstür & Canlı / Gelecek / Biten Maçlar
+│   │   ├── marslar.tsx           # Marşlar & Besteler (CDN Ses Oynatıcı)
+│   │   ├── daha.tsx              # Tahmin Ligi, ntfy Bildirim Kanalı, Menü & Bağlantılar
+│   │   └── _layout.tsx           # Tab Bar yapılandırması
+│   ├── mac/[id].tsx              # Canlı Maç Merkezi (Saha Dizilişi, Olaylar, İstatistik, Tahmin)
+│   ├── sporcular.tsx             # 6 Branş A Takım Kadroları & Oyuncu Profilleri
+│   ├── puan-durumu.tsx           # Süper Lig, Şampiyonlar Ligi & EuroLeague Puan Durumu
+│   ├── haberler.tsx              # Çoklu RSS Haber Akışı
+│   └── _layout.tsx               # Kök Layout & Tema Sağlayıcı
+├── components/                   # MatchCard, SoccerPitch, CloudinaryImage vb.
+├── constants/                    # Renk paletleri (Colors.ts - Sarı & Lacivert)
+├── data/                         # Marşlar (marslarData.ts) ve Tarihte Bugün (historyData.ts)
+├── services/                     # Canlı API Entegrasyonları (ESPN, EuroLeague, TheSportsDB, RSS, ntfy)
+│   ├── fixtureService.ts         # Çoklu branş ve turnuva canlı fikstür servisi
+│   ├── matchDetailService.ts     # Canlı maç merkezi, kadro ve olay motoru
+│   ├── standingsService.ts       # Süper Lig, ŞL ve EuroLeague puan tablosu servisi
+│   ├── athleteService.ts         # 6 branş sporcu kadro servisi
+│   ├── newsService.ts            # Çoklu RSS haber birleştirici
+│   └── fanEngagementService.ts   # Skor tahmin ligi ve ntfy.sh sıfır maliyetli bildirim servisi
+├── types/                        # TypeScript model ve arayüz tanımları
+├── app.json                      # Expo SDK 57 yapılandırma dosyası
+└── tsconfig.json                 # TypeScript kuralları
 ```
 
 ---

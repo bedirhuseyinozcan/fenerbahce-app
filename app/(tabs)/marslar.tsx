@@ -67,9 +67,11 @@ export default function MarslarScreen() {
 
   const isPlaying = status.playing;
   const isBuffering = status.isBuffering;
-  const currentTime = status.currentTime || 0;
+  const currentTime = Number.isFinite(status.currentTime)
+    ? status.currentTime
+    : 0;
   const duration =
-    status.duration && status.duration > 0
+    Number.isFinite(status.duration) && status.duration > 0
       ? status.duration
       : currentTrack.durationSec;
   const progressPercent =
@@ -123,24 +125,51 @@ export default function MarslarScreen() {
 
   const seekForward10 = () => {
     const dur =
-      status.duration && status.duration > 0
+      Number.isFinite(status.duration) && status.duration > 0
         ? status.duration
         : currentTrack.durationSec;
     const target = Math.min(dur - 0.5, currentTime + 10);
-    player.seekTo(target);
+    if (Number.isFinite(target) && target >= 0) {
+      player.seekTo(target);
+    }
   };
 
   const seekBackward10 = () => {
     const target = Math.max(0, currentTime - 10);
-    player.seekTo(target);
+    if (Number.isFinite(target)) {
+      player.seekTo(target);
+    }
   };
 
   const handleProgressBarPress = (e: GestureResponderEvent) => {
-    if (progressBarWidth > 0 && duration > 0) {
-      const touchX = e.nativeEvent.locationX;
+    if (progressBarWidth > 0 && Number.isFinite(duration) && duration > 0) {
+      const nativeEv = e.nativeEvent as any;
+      let touchX = nativeEv.locationX;
+
+      if (
+        !Number.isFinite(touchX) &&
+        typeof nativeEv.offsetX === "number" &&
+        Number.isFinite(nativeEv.offsetX)
+      ) {
+        touchX = nativeEv.offsetX;
+      }
+
+      if (
+        !Number.isFinite(touchX) &&
+        typeof nativeEv.pageX === "number" &&
+        (e.currentTarget as any)?.getBoundingClientRect
+      ) {
+        const rect = (e.currentTarget as any).getBoundingClientRect();
+        touchX = nativeEv.pageX - rect.left;
+      }
+
+      if (!Number.isFinite(touchX)) return;
+
       const ratio = Math.max(0, Math.min(1, touchX / progressBarWidth));
       const targetSec = ratio * duration;
-      player.seekTo(targetSec);
+      if (Number.isFinite(targetSec) && targetSec >= 0) {
+        player.seekTo(targetSec);
+      }
     }
   };
 

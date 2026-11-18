@@ -54,6 +54,7 @@ function RootLayoutNav() {
         <Stack.Screen name="sporcular" options={{ headerShown: true }} />
         <Stack.Screen name="haberler" options={{ headerShown: true }} />
         <Stack.Screen name="puan-durumu" options={{ headerShown: true }} />
+        <Stack.Screen name="derbi-merkezi" options={{ headerShown: true }} />
         <Stack.Screen name="modal" options={{ presentation: "modal" }} />
       </Stack>
     </ThemeProvider>
