@@ -37,6 +37,84 @@ function getEuroLeagueSeasonCode(now = new Date()): string {
   return `E${month >= 8 ? year : year - 1}`;
 }
 
+const HAS_TZ_REGEX = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+const NAIVE_ISO_REGEX =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/;
+
+function resolveEuroLeagueUtcDate(game: any): string | undefined {
+  if (!game) return undefined;
+  if (typeof game.utcDate === "string" && game.utcDate.trim()) {
+    const raw = game.utcDate.trim();
+    const normalized = HAS_TZ_REGEX.test(raw) ? raw : `${raw}Z`;
+    if (!isNaN(Date.parse(normalized))) return normalized;
+  }
+  if (
+    typeof game.localDate === "string" &&
+    game.localDate.trim() &&
+    typeof game.localTimeZone === "number" &&
+    Number.isFinite(game.localTimeZone)
+  ) {
+    const raw = game.localDate.trim();
+    if (HAS_TZ_REGEX.test(raw) && !isNaN(Date.parse(raw))) return raw;
+    const m = raw.match(NAIVE_ISO_REGEX);
+    if (m) {
+      const utcMs =
+        Date.UTC(
+          parseInt(m[1], 10),
+          parseInt(m[2], 10) - 1,
+          parseInt(m[3], 10),
+          parseInt(m[4], 10),
+          parseInt(m[5], 10),
+          parseInt(m[6] || "0", 10),
+        ) -
+        game.localTimeZone * 3_600_000;
+      return new Date(utcMs).toISOString();
+    }
+  }
+  if (typeof game.date === "string" && game.date.trim()) {
+    const raw = game.date.trim();
+    if (HAS_TZ_REGEX.test(raw) && !isNaN(Date.parse(raw))) return raw;
+    const m = raw.match(NAIVE_ISO_REGEX);
+    if (m) {
+      const guessUtcMs = Date.UTC(
+        parseInt(m[1], 10),
+        parseInt(m[2], 10) - 1,
+        parseInt(m[3], 10),
+        parseInt(m[4], 10),
+        parseInt(m[5], 10),
+        parseInt(m[6] || "0", 10),
+      );
+      try {
+        const parts = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Europe/Madrid",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hourCycle: "h23",
+        }).formatToParts(new Date(guessUtcMs));
+        const getPart = (t: string) =>
+          parseInt(parts.find((p) => p.type === t)?.value || "0", 10);
+        const h = getPart("hour") === 24 ? 0 : getPart("hour");
+        const madridAsUtc = Date.UTC(
+          getPart("year"),
+          getPart("month") - 1,
+          getPart("day"),
+          h,
+          getPart("minute"),
+          getPart("second"),
+        );
+        return new Date(guessUtcMs - (madridAsUtc - guessUtcMs)).toISOString();
+      } catch {
+        return new Date(guessUtcMs - 3_600_000).toISOString();
+      }
+    }
+  }
+  return undefined;
+}
+
 async function discoverActiveMatches(): Promise<WatchTargetMeta[]> {
   const targets: WatchTargetMeta[] = [];
   const nowMs = Date.now();
@@ -93,7 +171,8 @@ async function discoverActiveMatches(): Promise<WatchTargetMeta[]> {
           gameState === "playing" ||
           (!g.played &&
             ((g.local?.score ?? 0) > 0 || (g.road?.score ?? 0) > 0));
-        const startMs = new Date(g.date).getTime();
+        const isoDate = resolveEuroLeagueUtcDate(g);
+        const startMs = isoDate ? new Date(isoDate).getTime() : NaN;
         if (
           isLive ||
           (!g.played &&

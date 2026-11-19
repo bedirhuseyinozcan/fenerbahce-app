@@ -16,6 +16,7 @@ import {
   getCachedFixturesSync,
   getCachedMatchByIdSync,
   getEuroLeagueSeasonCode,
+  resolveEuroLeagueUtcDate,
   resolveMatchStatus,
 } from "@/services/fixtureService";
 import {
@@ -504,7 +505,10 @@ export const getMatchDetail = async (
               (cachedMatch
                 ? cachedMatch.homeTeam.toLowerCase().includes("fenerbah")
                 : false);
-            const dateObj = new Date(game.date);
+            const isoDate = resolveEuroLeagueUtcDate(game);
+            const dateObj = isoDate ? new Date(isoDate) : new Date(NaN);
+            const dateStr = formatIstanbulDate(dateObj);
+            const timeStr = formatIstanbulTime(dateObj);
 
             const qScores: string[] = [];
             if (game.local?.partials) {
@@ -615,9 +619,12 @@ export const getMatchDetail = async (
               awayTeam,
               awayLogo,
               awayScore,
-              date: formatIstanbulDate(dateObj),
-              time: formatIstanbulTime(dateObj),
-              rawDate: game.date || cachedMatch?.rawDate,
+              date: dateStr !== "Invalid Date" ? dateStr : cachedMatch?.date || "",
+              time:
+                timeStr !== "Invalid Date"
+                  ? timeStr
+                  : cachedMatch?.time || "20:45",
+              rawDate: isoDate || cachedMatch?.rawDate,
               stadium,
               status: isLive ? "live" : isCompleted ? "finished" : "upcoming",
               liveClock: isLive ? "CANLI" : undefined,

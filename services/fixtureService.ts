@@ -3,7 +3,7 @@ import { safeFetch } from "@/utils/safeFetch";
 import { getJson, setJson } from "@/utils/storage";
 
 const FIXTURES_CACHE_TTL_MS = 60 * 1000;
-const PERSISTENT_FIXTURES_KEY = "fb_persisted_live_fixtures_v6";
+const PERSISTENT_FIXTURES_KEY = "fb_persisted_live_fixtures_v7";
 let cachedFixtures: MatchData[] | null = null;
 let lastFetchTimestamp = 0;
 let inFlightFixturesPromise: Promise<MatchData[]> | null = null;
@@ -36,10 +36,12 @@ export function isSameIstanbulCalendarDay(
     });
     return formatter.format(target) === formatter.format(now);
   } catch {
+    const istTarget = new Date(target.getTime() + 3 * 60 * 60 * 1000);
+    const istNow = new Date(now.getTime() + 3 * 60 * 60 * 1000);
     return (
-      target.getFullYear() === now.getFullYear() &&
-      target.getMonth() === now.getMonth() &&
-      target.getDate() === now.getDate()
+      istTarget.getUTCFullYear() === istNow.getUTCFullYear() &&
+      istTarget.getUTCMonth() === istNow.getUTCMonth() &&
+      istTarget.getUTCDate() === istNow.getUTCDate()
     );
   }
 }
@@ -106,7 +108,103 @@ export function getEuroLeagueSeasonCode(now: Date = new Date()): string {
   return `E${seasonStartYear}`;
 }
 
+export interface EuroLeagueDateFields {
+  utcDate?: string | null;
+  localDate?: string | null;
+  localTimeZone?: number | null;
+  date?: string | null;
+}
+
+const HAS_TZ_REGEX = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+const NAIVE_ISO_REGEX =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/;
+
+export function resolveEuroLeagueUtcDate(
+  game: EuroLeagueDateFields | null | undefined,
+): string | undefined {
+  if (!game) return undefined;
+
+  if (typeof game.utcDate === "string" && game.utcDate.trim()) {
+    const rawUtc = game.utcDate.trim();
+    const normalizedUtc = HAS_TZ_REGEX.test(rawUtc) ? rawUtc : `${rawUtc}Z`;
+    if (!isNaN(Date.parse(normalizedUtc))) {
+      return normalizedUtc;
+    }
+  }
+
+  if (
+    typeof game.localDate === "string" &&
+    game.localDate.trim() &&
+    typeof game.localTimeZone === "number" &&
+    Number.isFinite(game.localTimeZone)
+  ) {
+    const rawLocal = game.localDate.trim();
+    if (HAS_TZ_REGEX.test(rawLocal) && !isNaN(Date.parse(rawLocal))) {
+      return rawLocal;
+    }
+    const m = rawLocal.match(NAIVE_ISO_REGEX);
+    if (m) {
+      const y = parseInt(m[1], 10);
+      const mo = parseInt(m[2], 10);
+      const d = parseInt(m[3], 10);
+      const hh = parseInt(m[4], 10);
+      const mm = parseInt(m[5], 10);
+      const ss = parseInt(m[6] || "0", 10);
+      const utcMs =
+        Date.UTC(y, mo - 1, d, hh, mm, ss) - game.localTimeZone * 3_600_000;
+      return new Date(utcMs).toISOString();
+    }
+  }
+
+  if (typeof game.date === "string" && game.date.trim()) {
+    const rawDate = game.date.trim();
+    if (HAS_TZ_REGEX.test(rawDate) && !isNaN(Date.parse(rawDate))) {
+      return rawDate;
+    }
+    const m = rawDate.match(NAIVE_ISO_REGEX);
+    if (m) {
+      const y = parseInt(m[1], 10);
+      const mo = parseInt(m[2], 10);
+      const d = parseInt(m[3], 10);
+      const hh = parseInt(m[4], 10);
+      const mm = parseInt(m[5], 10);
+      const ss = parseInt(m[6] || "0", 10);
+      const guessUtcMs = Date.UTC(y, mo - 1, d, hh, mm, ss);
+      try {
+        const parts = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Europe/Madrid",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hourCycle: "h23",
+        }).formatToParts(new Date(guessUtcMs));
+        const getPart = (type: string) =>
+          parseInt(parts.find((p) => p.type === type)?.value || "0", 10);
+        const madridHour = getPart("hour") === 24 ? 0 : getPart("hour");
+        const madridAsUtcMs = Date.UTC(
+          getPart("year"),
+          getPart("month") - 1,
+          getPart("day"),
+          madridHour,
+          getPart("minute"),
+          getPart("second"),
+        );
+        const offsetMs = madridAsUtcMs - guessUtcMs;
+        return new Date(guessUtcMs - offsetMs).toISOString();
+      } catch {
+        return new Date(guessUtcMs - 3_600_000).toISOString();
+      }
+    }
+  }
+
+  return undefined;
+}
+
 export function formatIstanbulDate(dateObj: Date): string {
+  if (isNaN(dateObj.getTime())) return "Invalid Date";
   try {
     return dateObj.toLocaleDateString("tr-TR", {
       day: "numeric",
@@ -116,27 +214,59 @@ export function formatIstanbulDate(dateObj: Date): string {
       timeZone: "Europe/Istanbul",
     });
   } catch {
-    return dateObj.toLocaleDateString("tr-TR", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      weekday: "long",
-    });
+    const ist = new Date(dateObj.getTime() + 3 * 60 * 60 * 1000);
+    try {
+      return ist.toLocaleDateString("tr-TR", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        weekday: "long",
+        timeZone: "UTC",
+      });
+    } catch {
+      const months = [
+        "Ocak",
+        "Şubat",
+        "Mart",
+        "Nisan",
+        "Mayıs",
+        "Haziran",
+        "Temmuz",
+        "Ağustos",
+        "Eylül",
+        "Ekim",
+        "Kasım",
+        "Aralık",
+      ];
+      const days = [
+        "Pazar",
+        "Pazartesi",
+        "Salı",
+        "Çarşamba",
+        "Perşembe",
+        "Cuma",
+        "Cumartesi",
+      ];
+      return `${ist.getUTCDate()} ${months[ist.getUTCMonth()]} ${ist.getUTCFullYear()} ${days[ist.getUTCDay()]}`;
+    }
   }
 }
 
 export function formatIstanbulTime(dateObj: Date): string {
+  if (isNaN(dateObj.getTime())) return "Invalid Date";
   try {
-    return dateObj.toLocaleTimeString("tr-TR", {
+    const formatted = dateObj.toLocaleTimeString("tr-TR", {
       hour: "2-digit",
       minute: "2-digit",
+      hourCycle: "h23",
       timeZone: "Europe/Istanbul",
     });
+    return formatted.replace(/^24:/, "00:");
   } catch {
-    return dateObj.toLocaleTimeString("tr-TR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const ist = new Date(dateObj.getTime() + 3 * 60 * 60 * 1000);
+    const hh = String(ist.getUTCHours()).padStart(2, "0");
+    const mm = String(ist.getUTCMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
   }
 }
 
@@ -342,7 +472,8 @@ export const fetchFixtures = async (
             fbGames.forEach((g: any) => {
               const isFBLocal = g.local?.club?.code === "ULK";
               const isFBRoad = g.road?.club?.code === "ULK";
-              const dateObj = new Date(g.date);
+              const isoDate = resolveEuroLeagueUtcDate(g);
+              const dateObj = isoDate ? new Date(isoDate) : new Date(NaN);
 
               const dateStr = formatIstanbulDate(dateObj);
               const timeStr = formatIstanbulTime(dateObj);
@@ -382,14 +513,14 @@ export const fetchFixtures = async (
                   : g.road?.club?.name || "Deplasman",
                 awayLogo: isFBRoad ? "fener.png" : g.road?.club?.images?.crest,
                 awayScore: hasScore ? String(g.road?.score ?? 0) : null,
-                date: dateStr,
+                date: dateStr !== "Invalid Date" ? dateStr : "",
                 time: timeStr !== "Invalid Date" ? timeStr : "20:45",
                 stadium:
                   g.venue?.name ||
                   (isFBLocal
                     ? "Ülker Spor ve Etkinlik Salonu"
                     : `${g.local?.club?.name || "Rakip"} Salonu`),
-                rawDate: g.date,
+                rawDate: isoDate || g.date,
                 status,
                 liveClock: isLive ? "CANLI" : undefined,
               });

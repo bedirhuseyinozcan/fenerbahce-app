@@ -36,6 +36,99 @@ function getEuroLeagueSeasonCode(now = new Date()) {
   return `E${month >= 8 ? year : year - 1}`;
 }
 
+function getIstanbulDateKey(dateObj = new Date()) {
+  if (isNaN(dateObj.getTime())) return "";
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Istanbul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(dateObj);
+  } catch {
+    const ist = new Date(dateObj.getTime() + 3 * 60 * 60 * 1000);
+    return ist.toISOString().slice(0, 10);
+  }
+}
+
+const HAS_TZ_REGEX = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+const NAIVE_ISO_REGEX =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/;
+
+function resolveEuroLeagueUtcDate(game) {
+  if (!game) return undefined;
+  if (typeof game.utcDate === "string" && game.utcDate.trim()) {
+    const raw = game.utcDate.trim();
+    const normalized = HAS_TZ_REGEX.test(raw) ? raw : `${raw}Z`;
+    if (!isNaN(Date.parse(normalized))) return normalized;
+  }
+  if (
+    typeof game.localDate === "string" &&
+    game.localDate.trim() &&
+    typeof game.localTimeZone === "number" &&
+    Number.isFinite(game.localTimeZone)
+  ) {
+    const raw = game.localDate.trim();
+    if (HAS_TZ_REGEX.test(raw) && !isNaN(Date.parse(raw))) return raw;
+    const m = raw.match(NAIVE_ISO_REGEX);
+    if (m) {
+      const utcMs =
+        Date.UTC(
+          parseInt(m[1], 10),
+          parseInt(m[2], 10) - 1,
+          parseInt(m[3], 10),
+          parseInt(m[4], 10),
+          parseInt(m[5], 10),
+          parseInt(m[6] || "0", 10),
+        ) -
+        game.localTimeZone * 3_600_000;
+      return new Date(utcMs).toISOString();
+    }
+  }
+  if (typeof game.date === "string" && game.date.trim()) {
+    const raw = game.date.trim();
+    if (HAS_TZ_REGEX.test(raw) && !isNaN(Date.parse(raw))) return raw;
+    const m = raw.match(NAIVE_ISO_REGEX);
+    if (m) {
+      const guessUtcMs = Date.UTC(
+        parseInt(m[1], 10),
+        parseInt(m[2], 10) - 1,
+        parseInt(m[3], 10),
+        parseInt(m[4], 10),
+        parseInt(m[5], 10),
+        parseInt(m[6] || "0", 10),
+      );
+      try {
+        const parts = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Europe/Madrid",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hourCycle: "h23",
+        }).formatToParts(new Date(guessUtcMs));
+        const getPart = (t) =>
+          parseInt(parts.find((p) => p.type === t)?.value || "0", 10);
+        const h = getPart("hour") === 24 ? 0 : getPart("hour");
+        const madridAsUtc = Date.UTC(
+          getPart("year"),
+          getPart("month") - 1,
+          getPart("day"),
+          h,
+          getPart("minute"),
+          getPart("second"),
+        );
+        return new Date(guessUtcMs - (madridAsUtc - guessUtcMs)).toISOString();
+      } catch {
+        return new Date(guessUtcMs - 3_600_000).toISOString();
+      }
+    }
+  }
+  return undefined;
+}
+
 async function dispatchNotifications(evt) {
   if (!rememberEvent(evt.eventKey)) return;
 
@@ -119,7 +212,7 @@ async function checkFootballMatches() {
   const leagues = ["tur.1", "uefa.champions", "uefa.europa"];
   let hasLive = false;
   let hasTodayMatch = false;
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getIstanbulDateKey();
 
   for (const slug of leagues) {
     try {
@@ -136,7 +229,9 @@ async function checkFootballMatches() {
 
         const state = comp.status?.type?.state || "pre";
         if (state === "in") hasLive = true;
-        if (String(comp.date || "").startsWith(todayStr)) hasTodayMatch = true;
+        if (comp.date && getIstanbulDateKey(new Date(comp.date)) === todayStr) {
+          hasTodayMatch = true;
+        }
 
         const matchId = String(ev.id);
         const home = comp.competitors?.find((c) => c.homeAway === "home");
@@ -188,7 +283,7 @@ async function checkFootballMatches() {
 async function checkEuroLeagueMatches() {
   let hasLive = false;
   let hasTodayMatch = false;
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getIstanbulDateKey();
 
   try {
     const seasonCode = getEuroLeagueSeasonCode();
@@ -204,7 +299,10 @@ async function checkEuroLeagueMatches() {
         continue;
       }
 
-      if (String(g.date || "").startsWith(todayStr)) hasTodayMatch = true;
+      const isoDate = resolveEuroLeagueUtcDate(g);
+      if (isoDate && getIstanbulDateKey(new Date(isoDate)) === todayStr) {
+        hasTodayMatch = true;
+      }
 
       const gameState = String(g.gameStatus || g.status || "").toLowerCase();
       const isLive =
