@@ -70,6 +70,15 @@ export default function DahaFazlaScreen() {
       title: "BİLDİRİM & TAKİP",
       items: [
         {
+          id: "tahmin-ligi",
+          title: "Arkadaş Tahmin Ligi & Oda Sıralaması",
+          subtitle:
+            "Oda kodu oluştur, arkadaşlarınla skor tahmininde yarış & paylaş",
+          icon: "podium",
+          iconColor: theme.accent,
+          onPress: () => router.push("/tahmin-ligi" as any),
+        },
+        {
           id: "bildirimler",
           title: "Bildirim Merkezi & Maç Hatırlatmaları",
           subtitle:
@@ -95,7 +104,7 @@ export default function DahaFazlaScreen() {
         {
           id: "puan-durumu",
           title: "Canlı Puan Durumları",
-          subtitle: "Süper Lig, Şampiyonlar Ligi ve EuroLeague tabloları",
+          subtitle: "Süper Lig, ŞL, Avrupa Ligi ve EuroLeague tabloları",
           icon: "trophy",
           iconColor: "#FFA000",
           onPress: () => router.push("/puan-durumu" as any),
@@ -107,6 +116,14 @@ export default function DahaFazlaScreen() {
           icon: "flame",
           iconColor: "#EF4444",
           onPress: () => router.push("/derbi-merkezi" as any),
+        },
+        {
+          id: "tarih-arsivi",
+          title: "Tarihte Fenerbahçe Arşivi",
+          subtitle: "1907'den bugüne kupalar, tarihi derbiler ve Avrupa zaferleri",
+          icon: "library",
+          iconColor: "#10B981",
+          onPress: () => router.push("/tarih-arsivi" as any),
         },
         {
           id: "haberler",
@@ -237,9 +254,23 @@ export default function DahaFazlaScreen() {
           },
         ]}
       >
-        <Text style={[styles.cardHeading, { color: theme.accent }]}>
-          🏆 ARKADAŞ TAHMİN LİGİ PUANIN
-        </Text>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <Text style={[styles.cardHeading, { color: theme.accent, marginBottom: 0 }]}>
+            🏆 ARKADAŞ TAHMİN LİGİ PUANIN
+          </Text>
+          <TouchableOpacity onPress={() => router.push("/tahmin-ligi" as any)}>
+            <Text style={{ fontSize: 12, fontWeight: "bold", color: theme.accent }}>
+              Arkadaş Odası & Sıralama →
+            </Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.predStatsRow}>
           <View style={styles.predStatBox}>
             <Text style={[styles.predStatValue, { color: theme.accent }]}>

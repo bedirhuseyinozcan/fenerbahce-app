@@ -10,6 +10,7 @@ import React, { useCallback, useState } from "react";
 import {
   FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -20,6 +21,7 @@ const LEAGUE_TABS: { key: StandingsLeagueKey; label: string; emoji: string }[] =
   [
     { key: "superlig", label: "Süper Lig", emoji: "⚽" },
     { key: "champions", label: "Şampiyonlar Ligi", emoji: "⭐" },
+    { key: "europa", label: "Avrupa Ligi", emoji: "🏆" },
     { key: "euroleague", label: "EuroLeague", emoji: "🏀" },
   ];
 
@@ -32,7 +34,7 @@ function getZoneColor(
     if (rank <= 2) return "#10B981";
     if (rank <= 4) return "#3B82F6";
     if (totalTeams >= 16 && rank > totalTeams - 3) return "#EF4444";
-  } else if (league === "champions") {
+  } else if (league === "champions" || league === "europa") {
     if (rank <= 8) return "#10B981";
     if (rank <= 24) return "#F59E0B";
   } else if (league === "euroleague") {
@@ -78,7 +80,12 @@ export default function PuanDurumuScreen() {
         }}
       />
 
-      <View style={styles.leagueTabsRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.leagueTabsScroll}
+        contentContainerStyle={styles.leagueTabsRow}
+      >
         {LEAGUE_TABS.map((t) => {
           const isActive = selectedLeague === t.key;
           return (
@@ -108,7 +115,7 @@ export default function PuanDurumuScreen() {
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
 
       {loading ? (
         <StandingsSkeleton rows={10} />
@@ -372,15 +379,17 @@ const styles = StyleSheet.create({
   tabularNumbers: {
     fontVariant: ["tabular-nums"],
   },
+  leagueTabsScroll: {
+    flexGrow: 0,
+    marginBottom: 14,
+  },
   leagueTabsRow: {
     flexDirection: "row",
     gap: 8,
-    marginBottom: 14,
   },
   leagueTab: {
-    flex: 1,
     paddingVertical: 10,
-    paddingHorizontal: 6,
+    paddingHorizontal: 13,
     borderRadius: 10,
     borderWidth: 1,
     alignItems: "center",

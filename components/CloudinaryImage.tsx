@@ -2,7 +2,7 @@ import { useAppTheme } from "@/context/ThemeContext";
 import { getCloudinaryUrl } from "@/utils/cloudinary";
 import { Image, ImageProps } from "expo-image";
 import React, { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 interface CloudinaryImageProps extends Omit<ImageProps, "source"> {
   publicId: string;
@@ -19,7 +19,7 @@ export default function CloudinaryImage({
   placeholderColor,
   ...props
 }: CloudinaryImageProps) {
-  const { theme } = useAppTheme();
+  const { theme, brand } = useAppTheme();
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
@@ -28,8 +28,25 @@ export default function CloudinaryImage({
 
   const optimizedUrl = getCloudinaryUrl(publicId, width, height);
   const bg = placeholderColor ?? theme.placeholder;
+  const isFenerbahceCrest = publicId === "fener.png";
 
   if (!optimizedUrl || hasError) {
+    if (isFenerbahceCrest) {
+      return (
+        <View
+          style={[
+            styles.fbFallbackBadge,
+            { backgroundColor: brand.navy, borderColor: brand.yellow },
+            style,
+          ]}
+        >
+          <Text style={[styles.fbFallbackText, { color: brand.yellow }]}>
+            FB
+          </Text>
+        </View>
+      );
+    }
+
     return (
       <View
         style={[
@@ -58,5 +75,16 @@ const styles = StyleSheet.create({
   fallbackBox: {
     borderRadius: 999,
     borderWidth: 1,
+  },
+  fbFallbackBadge: {
+    borderRadius: 999,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fbFallbackText: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: -0.3,
   },
 });

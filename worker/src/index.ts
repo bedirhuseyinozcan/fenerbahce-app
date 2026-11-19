@@ -1,6 +1,17 @@
 import { MatchWatcher } from "./MatchWatcher";
+import {
+  computeRoomLeaderboard,
+  normalizeNickname,
+  normalizeRoomCode,
+} from "./predictions";
 import { sendExpoPushBatch, sendNtfyNotification } from "./push";
-import type { DeviceRecord, Env, WatchTargetMeta } from "./types";
+import type {
+  DeviceRecord,
+  Env,
+  FinishedMatchScore,
+  PredictionRecord,
+  WatchTargetMeta,
+} from "./types";
 
 export { MatchWatcher };
 
@@ -205,6 +216,151 @@ export default {
       } catch {
         return jsonResponse({ ok: false, error: "Invalid request" }, 400);
       }
+    }
+
+    if (request.method === "POST" && url.pathname === "/predictions") {
+      try {
+        const body: any = await request.json();
+        const roomCode = normalizeRoomCode(body?.roomCode);
+        const nickname = normalizeNickname(body?.nickname);
+        const deviceId = String(body?.deviceId || "").trim();
+        const matchId = String(body?.matchId || "").trim();
+        const homeScore = Number(body?.homeScore);
+        const awayScore = Number(body?.awayScore);
+
+        if (!roomCode) {
+          return jsonResponse(
+            { ok: false, error: "Geçerli oda kodu gerekli (en az 3 karakter)." },
+            400,
+          );
+        }
+        if (!nickname) {
+          return jsonResponse(
+            { ok: false, error: "Geçerli takma ad gerekli (en az 2 karakter)." },
+            400,
+          );
+        }
+        if (!deviceId || !matchId) {
+          return jsonResponse(
+            { ok: false, error: "deviceId ve matchId zorunludur." },
+            400,
+          );
+        }
+        if (
+          !Number.isInteger(homeScore) ||
+          !Number.isInteger(awayScore) ||
+          homeScore < 0 ||
+          awayScore < 0 ||
+          homeScore > 200 ||
+          awayScore > 200
+        ) {
+          return jsonResponse(
+            { ok: false, error: "Skorlar 0-200 arasında tam sayı olmalıdır." },
+            400,
+          );
+        }
+
+        const createdAt = new Date().toISOString();
+        await env.DB.prepare(
+          `INSERT INTO predictions (room_code, device_id, nickname, match_id, home_score, away_score, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(room_code, device_id, match_id) DO UPDATE SET
+             nickname = excluded.nickname,
+             home_score = excluded.home_score,
+             away_score = excluded.away_score,
+             created_at = excluded.created_at`,
+        )
+          .bind(
+            roomCode,
+            deviceId,
+            nickname,
+            matchId,
+            homeScore,
+            awayScore,
+            createdAt,
+          )
+          .run();
+
+        return jsonResponse({
+          ok: true,
+          roomCode,
+          matchId,
+          homeScore,
+          awayScore,
+        });
+      } catch {
+        return jsonResponse({ ok: false, error: "Invalid JSON body" }, 400);
+      }
+    }
+
+    const roomPredsMatch = url.pathname.match(/^\/rooms\/([^/]+)\/predictions$/);
+    if (request.method === "GET" && roomPredsMatch) {
+      const roomCode = normalizeRoomCode(decodeURIComponent(roomPredsMatch[1]));
+      if (!roomCode) {
+        return jsonResponse({ ok: false, error: "Invalid room code" }, 400);
+      }
+      const matchIdFilter = url.searchParams.get("matchId");
+      const query = matchIdFilter
+        ? env.DB.prepare(
+            "SELECT room_code, device_id, nickname, match_id, home_score, away_score, created_at FROM predictions WHERE room_code = ? AND match_id = ? ORDER BY created_at DESC",
+          ).bind(roomCode, matchIdFilter)
+        : env.DB.prepare(
+            "SELECT room_code, device_id, nickname, match_id, home_score, away_score, created_at FROM predictions WHERE room_code = ? ORDER BY created_at DESC LIMIT 500",
+          ).bind(roomCode);
+
+      const { results } = await query.all<PredictionRecord>();
+      return jsonResponse({
+        ok: true,
+        roomCode,
+        predictions: results || [],
+      });
+    }
+
+    const roomBoardMatch = url.pathname.match(/^\/rooms\/([^/]+)\/leaderboard$/);
+    if (
+      (request.method === "GET" || request.method === "POST") &&
+      roomBoardMatch
+    ) {
+      const roomCode = normalizeRoomCode(decodeURIComponent(roomBoardMatch[1]));
+      if (!roomCode) {
+        return jsonResponse({ ok: false, error: "Invalid room code" }, 400);
+      }
+
+      const { results } = await env.DB.prepare(
+        "SELECT room_code, device_id, nickname, match_id, home_score, away_score, created_at FROM predictions WHERE room_code = ? ORDER BY created_at DESC LIMIT 500",
+      )
+        .bind(roomCode)
+        .all<PredictionRecord>();
+
+      const rows = results || [];
+      const memberCount = new Set(rows.map((r) => r.device_id)).size;
+
+      if (request.method === "POST") {
+        let finishedMatches: FinishedMatchScore[] = [];
+        try {
+          const body: any = await request.json();
+          if (Array.isArray(body?.finishedMatches)) {
+            finishedMatches = body.finishedMatches;
+          }
+        } catch {
+          finishedMatches = [];
+        }
+        const leaderboard = computeRoomLeaderboard(rows, finishedMatches);
+        return jsonResponse({
+          ok: true,
+          roomCode,
+          leaderboard,
+          predictions: rows,
+          memberCount,
+        });
+      }
+
+      return jsonResponse({
+        ok: true,
+        roomCode,
+        predictions: rows,
+        memberCount,
+      });
     }
 
     return jsonResponse({ ok: false, error: "Not found" }, 404);

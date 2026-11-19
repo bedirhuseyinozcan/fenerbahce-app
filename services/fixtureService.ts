@@ -144,6 +144,7 @@ const ESPN_FOOTBALL_COMPETITIONS: { slug: string; label: string }[] = [
   { slug: "tur.1", label: "Trendyol Süper Lig" },
   { slug: "uefa.champions", label: "UEFA Şampiyonlar Ligi" },
   { slug: "uefa.europa", label: "UEFA Avrupa Ligi" },
+  { slug: "uefa.europa.conf", label: "UEFA Konferans Ligi" },
 ];
 
 export const fetchFixtures = async (

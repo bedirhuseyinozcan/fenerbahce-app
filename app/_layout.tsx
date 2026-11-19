@@ -103,6 +103,8 @@ function RootLayoutNav() {
           <Stack.Screen name="puan-durumu" options={{ headerShown: true }} />
           <Stack.Screen name="derbi-merkezi" options={{ headerShown: true }} />
           <Stack.Screen name="bildirimler" options={{ headerShown: true }} />
+          <Stack.Screen name="tahmin-ligi" options={{ headerShown: true }} />
+          <Stack.Screen name="tarih-arsivi" options={{ headerShown: true }} />
         </Stack>
         <MiniAnthemPlayer />
       </View>

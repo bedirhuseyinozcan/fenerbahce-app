@@ -7,11 +7,13 @@ import {
 import { triggerSelectionHaptic } from "@/utils/haptics";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export function HistoryTodayCard() {
   const { brand } = useAppTheme();
+  const router = useRouter();
 
   const initialIndex = useMemo(() => {
     const todayEvent = getTodayHistoricalEvent();
@@ -75,6 +77,16 @@ export function HistoryTodayCard() {
       </View>
       <Text style={styles.historyTitle}>{current.title}</Text>
       <Text style={styles.historyDesc}>{current.description}</Text>
+      <TouchableOpacity
+        onPress={() => {
+          triggerSelectionHaptic();
+          router.push("/tarih-arsivi" as any);
+        }}
+        style={styles.archiveLinkBtn}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.archiveLinkText}>Tüm Arşiv →</Text>
+      </TouchableOpacity>
     </LinearGradient>
   );
 }
@@ -146,5 +158,18 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.85)",
     fontSize: 12,
     lineHeight: 17,
+  },
+  archiveLinkBtn: {
+    alignSelf: "flex-end",
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(255, 237, 0, 0.16)",
+  },
+  archiveLinkText: {
+    color: "#FFED00",
+    fontSize: 11,
+    fontWeight: "800",
   },
 });

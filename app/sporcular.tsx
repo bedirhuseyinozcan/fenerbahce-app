@@ -45,7 +45,17 @@ export default function SporcularScreen() {
   } = useAthletesQuery(selectedBranch);
 
   const loading = isLoading && athletes.length === 0;
-  const isLiveRosterBranch = LIVE_ROSTER_BRANCHES.has(selectedBranch);
+  const loadedSource = athletes[0]?.source;
+  const sourceBadgeLabel =
+    loadedSource === "espn"
+      ? "● Canlı Kaynak: ESPN"
+      : loadedSource === "euroleague"
+        ? "● Canlı Kaynak: EuroLeague"
+        : loadedSource === "wikipedia"
+          ? "● Canlı Kaynak: Wikipedia"
+          : LIVE_ROSTER_BRANCHES.has(selectedBranch)
+            ? "● Canlı Kaynak"
+            : "📋 Sezon Listesi";
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -179,7 +189,7 @@ export default function SporcularScreen() {
           ]}
         >
           <Text style={[styles.sourceBadgeText, { color: theme.badgeText }]}>
-            {isLiveRosterBranch ? "● Canlı Kaynak" : "📋 Sezon Listesi"}
+            {sourceBadgeLabel}
           </Text>
         </View>
         <Text style={[styles.countText, { color: theme.secondaryText }]}>
@@ -430,6 +440,52 @@ export default function SporcularScreen() {
                       </Text>
                     </View>
                   )}
+                  {selectedAthlete.age ? (
+                    <View
+                      style={[
+                        styles.modalDetailRow,
+                        { borderBottomColor: theme.divider },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.modalDetailLabel,
+                          { color: theme.secondaryText },
+                        ]}
+                      >
+                        Yaş:
+                      </Text>
+                      <Text
+                        style={[styles.modalDetailValue, { color: theme.text }]}
+                      >
+                        {selectedAthlete.age}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {selectedAthlete.height || selectedAthlete.weight ? (
+                    <View
+                      style={[
+                        styles.modalDetailRow,
+                        { borderBottomColor: theme.divider },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.modalDetailLabel,
+                          { color: theme.secondaryText },
+                        ]}
+                      >
+                        Fiziksel:
+                      </Text>
+                      <Text
+                        style={[styles.modalDetailValue, { color: theme.text }]}
+                      >
+                        {[selectedAthlete.height, selectedAthlete.weight]
+                          .filter(Boolean)
+                          .join(" • ")}
+                      </Text>
+                    </View>
+                  ) : null}
                   <View
                     style={[
                       styles.modalDetailRow,
@@ -454,6 +510,140 @@ export default function SporcularScreen() {
                     </Text>
                   </View>
                 </View>
+
+                {selectedAthlete.stats ? (
+                  <View
+                    style={[
+                      styles.statsBox,
+                      {
+                        backgroundColor: theme.surfaceSubtle,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.statsTitle, { color: theme.accent }]}
+                    >
+                      📊 SEZON İSTATİSTİKLERİ
+                      {selectedAthlete.stats.sourceLabel
+                        ? ` (${selectedAthlete.stats.sourceLabel})`
+                        : ""}
+                    </Text>
+                    <View style={styles.statsGrid}>
+                      {selectedAthlete.stats.appearances !== undefined && (
+                        <View style={styles.statCell}>
+                          <Text style={[styles.statVal, { color: theme.text }]}>
+                            {selectedAthlete.stats.appearances}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.statLbl,
+                              { color: theme.secondaryText },
+                            ]}
+                          >
+                            Maç
+                          </Text>
+                        </View>
+                      )}
+                      {selectedAthlete.stats.goals !== undefined && (
+                        <View style={styles.statCell}>
+                          <Text style={[styles.statVal, { color: theme.text }]}>
+                            {selectedAthlete.stats.goals}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.statLbl,
+                              { color: theme.secondaryText },
+                            ]}
+                          >
+                            Gol
+                          </Text>
+                        </View>
+                      )}
+                      {selectedAthlete.stats.assists !== undefined && (
+                        <View style={styles.statCell}>
+                          <Text style={[styles.statVal, { color: theme.text }]}>
+                            {selectedAthlete.stats.assists}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.statLbl,
+                              { color: theme.secondaryText },
+                            ]}
+                          >
+                            Asist
+                          </Text>
+                        </View>
+                      )}
+                      {selectedAthlete.stats.pointsPerGame !== undefined && (
+                        <View style={styles.statCell}>
+                          <Text style={[styles.statVal, { color: theme.text }]}>
+                            {selectedAthlete.stats.pointsPerGame}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.statLbl,
+                              { color: theme.secondaryText },
+                            ]}
+                          >
+                            Sayı Ort.
+                          </Text>
+                        </View>
+                      )}
+                      {selectedAthlete.stats.reboundsPerGame !== undefined && (
+                        <View style={styles.statCell}>
+                          <Text style={[styles.statVal, { color: theme.text }]}>
+                            {selectedAthlete.stats.reboundsPerGame}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.statLbl,
+                              { color: theme.secondaryText },
+                            ]}
+                          >
+                            Ribaund
+                          </Text>
+                        </View>
+                      )}
+                      {selectedAthlete.stats.assistsPerGame !== undefined && (
+                        <View style={styles.statCell}>
+                          <Text style={[styles.statVal, { color: theme.text }]}>
+                            {selectedAthlete.stats.assistsPerGame}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.statLbl,
+                              { color: theme.secondaryText },
+                            ]}
+                          >
+                            Asist Ort.
+                          </Text>
+                        </View>
+                      )}
+                      {selectedAthlete.stats.pir !== undefined && (
+                        <View style={styles.statCell}>
+                          <Text style={[styles.statVal, { color: theme.text }]}>
+                            {selectedAthlete.stats.pir}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.statLbl,
+                              { color: theme.secondaryText },
+                            ]}
+                          >
+                            VP
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                ) : (
+                  <Text
+                    style={[styles.noStatsText, { color: theme.secondaryText }]}
+                  >
+                    Bu sporcu için canlı sezon istatistiği henüz yayınlanmadı.
+                  </Text>
+                )}
 
                 <TouchableOpacity
                   style={[styles.modalCloseBtn, { backgroundColor: brand.navy }]}
@@ -683,5 +873,42 @@ const styles = StyleSheet.create({
   modalCloseBtnText: {
     fontSize: 14,
     fontWeight: "bold",
+  },
+  statsBox: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 10,
+    marginBottom: 14,
+  },
+  statsTitle: {
+    fontSize: 11,
+    fontWeight: "900",
+    marginBottom: 8,
+    letterSpacing: 0.4,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "space-around",
+  },
+  statCell: {
+    alignItems: "center",
+    minWidth: 54,
+  },
+  statVal: {
+    fontSize: 16,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"],
+  },
+  statLbl: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  noStatsText: {
+    fontSize: 11,
+    fontStyle: "italic",
+    textAlign: "center",
+    marginBottom: 14,
   },
 });

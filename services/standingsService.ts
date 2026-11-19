@@ -3,7 +3,11 @@ import { TeamStanding } from "@/types";
 import { safeFetch } from "@/utils/safeFetch";
 import { getJson, setJson } from "@/utils/storage";
 
-export type StandingsLeagueKey = "superlig" | "champions" | "euroleague";
+export type StandingsLeagueKey =
+  | "superlig"
+  | "champions"
+  | "europa"
+  | "euroleague";
 
 const standingsCache = new Map<
   StandingsLeagueKey,
@@ -256,6 +260,8 @@ export const fetchStandingsByLeague = async (
       result = await fetchEspnStandingsBySlug("tur.1");
     } else if (league === "champions") {
       result = await fetchEspnStandingsBySlug("uefa.champions");
+    } else if (league === "europa") {
+      result = await fetchEspnStandingsBySlug("uefa.europa");
     } else if (league === "euroleague") {
       result = await fetchEuroLeagueStandingsFromGames();
     }

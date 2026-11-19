@@ -13,6 +13,8 @@ interface ScorePredictionCardProps {
   predHome: number;
   predAway: number;
   savedPred: PredictionData | null;
+  syncNote?: string;
+  onOpenLeague?: () => void;
   onChangeHome: (delta: number) => void;
   onChangeAway: (delta: number) => void;
   onSave: () => void;
@@ -25,6 +27,8 @@ export function ScorePredictionCard({
   predHome,
   predAway,
   savedPred,
+  syncNote,
+  onOpenLeague,
   onChangeHome,
   onChangeAway,
   onSave,
@@ -233,6 +237,24 @@ export function ScorePredictionCard({
           </Text>
         </TouchableOpacity>
       )}
+
+      {(syncNote || onOpenLeague) && (
+        <View style={styles.leagueFooterRow}>
+          <Text
+            style={[styles.syncNoteText, { color: theme.secondaryText }]}
+            numberOfLines={2}
+          >
+            {syncNote || "Arkadaşlarınla yarışmak için Tahmin Ligi'ne katıl"}
+          </Text>
+          {onOpenLeague && (
+            <TouchableOpacity onPress={onOpenLeague}>
+              <Text style={[styles.leagueLinkText, { color: theme.accent }]}>
+                Tahmin Ligi →
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -329,5 +351,20 @@ const styles = StyleSheet.create({
   predSaveBtnText: {
     fontSize: 12,
     fontWeight: "bold",
+  },
+  leagueFooterRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 10,
+    gap: 8,
+  },
+  syncNoteText: {
+    flex: 1,
+    fontSize: 11,
+  },
+  leagueLinkText: {
+    fontSize: 11,
+    fontWeight: "800",
   },
 });

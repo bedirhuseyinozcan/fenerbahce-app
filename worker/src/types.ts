@@ -81,3 +81,30 @@ export interface WatchTargetMeta {
   leagueSlug?: string;
   seasonCode?: string;
 }
+
+export interface PredictionRecord {
+  id?: number;
+  room_code: string;
+  device_id: string;
+  nickname: string;
+  match_id: string;
+  home_score: number;
+  away_score: number;
+  created_at: string;
+}
+
+export interface FinishedMatchScore {
+  matchId: string;
+  homeScore: number;
+  awayScore: number;
+}
+
+export interface WorkerLeaderboardEntry {
+  deviceId: string;
+  nickname: string;
+  totalPoints: number;
+  exactHits: number;
+  correctOutcomes: number;
+  totalPredictions: number;
+  scoredPredictions: number;
+}

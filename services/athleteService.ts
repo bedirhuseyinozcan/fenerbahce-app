@@ -1,5 +1,12 @@
+import {
+  attachEuroLeagueStats,
+  parseEspnFootballRoster,
+  parseEuroLeagueClubPeople,
+} from "@/features/squads/parsers/athleteParsers";
+import { getEuroLeagueSeasonCode } from "@/services/fixtureService";
 import { Athlete, AthleteBranch } from "@/types";
 import { safeFetch } from "@/utils/safeFetch";
+import { getJson, setJson } from "@/utils/storage";
 export const fallbackAthletes: Athlete[] = [
   // FUTBOL A TAKIMI (2026-2027 SEZONU)
   {
@@ -594,13 +601,34 @@ export const LIVE_ROSTER_BRANCHES = new Set<AthleteBranch>([
 const athletesCache = new Map<string, { data: Athlete[]; ts: number }>();
 const ATHLETES_TTL_MS = 5 * 60 * 1000;
 
+function loadPersistedRoster(branchKey: string): Athlete[] | null {
+  const parsed = getJson<Athlete[]>(`fb_roster_v1_${branchKey}`);
+  return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+}
+
+function savePersistedRoster(branchKey: string, list: Athlete[]): void {
+  if (!Array.isArray(list) || list.length === 0) return;
+  setJson(`fb_roster_v1_${branchKey}`, list);
+}
+
+function withSourceFallback(branchFilter?: AthleteBranch): Athlete[] {
+  const base = branchFilter
+    ? fallbackAthletes.filter((a) => a.branch === branchFilter)
+    : fallbackAthletes;
+  return base.map((a) => ({ ...a, source: "season-list" }));
+}
+
 export function getFallbackAthletesByBranch(
   branch: AthleteBranch | "Tümü" = "Tümü",
 ): Athlete[] {
   const cached = athletesCache.get(branch);
   if (cached) return cached.data;
-  if (branch === "Tümü") return fallbackAthletes;
-  return fallbackAthletes.filter((a) => a.branch === branch);
+  if (branch !== "Tümü") {
+    const persisted = loadPersistedRoster(branch);
+    if (persisted) return persisted;
+    return withSourceFallback(branch);
+  }
+  return withSourceFallback();
 }
 
 export const fetchAthletes = async (
@@ -614,138 +642,123 @@ export const fetchAthletes = async (
   const list: Athlete[] = [];
 
   if (branch === "Futbol" || branch === "Tümü") {
+    let footballList: Athlete[] = [];
     try {
       const res = await safeFetch(
         "https://site.api.espn.com/apis/site/v2/sports/soccer/tur.1/teams/436/roster",
       );
       if (res && res.ok) {
         const data = await res.json();
-        if (Array.isArray(data.athletes) && data.athletes.length > 0) {
-          data.athletes.forEach((a: any) => {
-            const posRaw = a.position?.displayName?.toLowerCase() || "";
-            let category: Athlete["category"] = "Orta Saha";
-            let posTr = "Orta Saha";
-
-            if (posRaw.includes("goalkeeper")) {
-              category = "Kaleci";
-              posTr = "Kaleci";
-            } else if (posRaw.includes("defender") || posRaw.includes("back")) {
-              category = "Defans";
-              if (posRaw.includes("right")) posTr = "Sağ Bek";
-              else if (posRaw.includes("left")) posTr = "Sol Bek";
-              else posTr = "Stoper";
-            } else if (posRaw.includes("midfield")) {
-              category = "Orta Saha";
-              if (posRaw.includes("attacking")) posTr = "On Numara";
-              else if (posRaw.includes("defensive")) posTr = "Ön Libero";
-              else posTr = "Merkez Orta Saha";
-            } else if (
-              posRaw.includes("forward") ||
-              posRaw.includes("striker") ||
-              posRaw.includes("winger")
-            ) {
-              category = "Forvet";
-              if (posRaw.includes("right")) posTr = "Sağ Kanat";
-              else if (posRaw.includes("left")) posTr = "Sol Kanat";
-              else posTr = "Santrafor";
-            }
-
-            list.push({
-              id: `espn-fb-${a.id}`,
-              number: a.jersey ? parseInt(a.jersey, 10) : 0,
-              name: a.displayName || a.fullName,
-              position: posTr,
-              category,
-              country: a.citizenship || "Türkiye",
-              branch: "Futbol",
-              image: a.headshot?.href || undefined,
-            });
-          });
+        footballList = parseEspnFootballRoster(data);
+        if (footballList.length > 0) {
+          savePersistedRoster("Futbol", footballList);
         }
       }
-    } catch (err) {
-      console.warn(
-        "ESPN futbol roster çekilemedi, fallback kullanılıyor:",
-        err,
-      );
+    } catch {
+      // ignore football live fetch error
     }
 
-    if (!list.some((a) => a.branch === "Futbol")) {
-      list.push(...fallbackAthletes.filter((a) => a.branch === "Futbol"));
+    if (footballList.length === 0) {
+      footballList = loadPersistedRoster("Futbol") || withSourceFallback("Futbol");
     }
+    list.push(...footballList);
   }
 
   if (branch === "Basketbol" || branch === "Tümü") {
-    let wikiFound = false;
+    let basketList: Athlete[] = [];
+    const seasonCode = getEuroLeagueSeasonCode();
+
     try {
-      const res = await safeFetch(
-        "https://tr.wikipedia.org/api/rest_v1/page/html/Fenerbah%C3%A7e_(basketbol_tak%C4%B1m%C4%B1)",
-      );
-      if (res && res.ok) {
-        const html = await res.text();
-        const rowsB = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
+      const [peopleRes, statsRes] = await Promise.all([
+        safeFetch(
+          `https://api-live.euroleague.net/v2/competitions/E/seasons/${seasonCode}/clubs/ULK/people`,
+        ),
+        safeFetch(
+          `https://api-live.euroleague.net/v3/competitions/E/statistics/players/traditional?seasonMode=Single&seasonCode=${seasonCode}&clubCode=ULK`,
+        ),
+      ]);
 
-        for (const row of rowsB) {
-          const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
-          if (cells.length >= 4 && cells[0] && cells[1]) {
-            const posRaw = cells[0].replace(/<[^>]+>/g, "").trim();
-            const numRaw = cells[1].replace(/<[^>]+>/g, "").trim();
-            const nameMatch =
-              cells[3]?.match(/<a[^>]*>([^<]+)<\/a>/) ||
-              cells[2]?.match(/<a[^>]*>([^<]+)<\/a>/);
-
-            if (
-              /^\d+$/.test(numRaw) &&
-              nameMatch &&
-              nameMatch[1] &&
-              !nameMatch[1].includes("Takım")
-            ) {
-              const playerName = nameMatch[1].replace(/,\s*/, " ").trim();
-              const lowerName = playerName.toLowerCase();
-
-              if (
-                lowerName.includes("biberovic") ||
-                lowerName.includes("biberović") ||
-                lowerName.includes("hayes")
-              ) {
-                continue;
-              }
-
-              let category: Athlete["category"] = "Gard";
-              if (
-                posRaw.includes("G") ||
-                posRaw.includes("OK") ||
-                posRaw.includes("ŞG")
-              ) {
-                category = "Gard";
-              } else {
-                category = "Forvet/Pivot";
-              }
-
-              list.push({
-                id: `wiki-bb-${numRaw}`,
-                number: parseInt(numRaw, 10),
-                name: playerName,
-                position: posRaw || "Oyuncu",
-                category,
-                branch: "Basketbol",
-              });
-              wikiFound = true;
-            }
+      if (peopleRes && peopleRes.ok) {
+        const peopleJson = await peopleRes.json();
+        basketList = parseEuroLeagueClubPeople(peopleJson);
+        if (basketList.length > 0 && statsRes && statsRes.ok) {
+          try {
+            const statsJson = await statsRes.json();
+            basketList = attachEuroLeagueStats(basketList, statsJson);
+          } catch {
+            // stats optional
           }
         }
+        if (basketList.length > 0) {
+          savePersistedRoster("Basketbol", basketList);
+        }
       }
-    } catch (err) {
-      console.warn("Wiki basketbol çekilemedi, fallback kullanılıyor:", err);
+    } catch {
+      // fall through to secondary Wikipedia source
     }
 
-    if (!wikiFound) {
-      list.push(...fallbackAthletes.filter((a) => a.branch === "Basketbol"));
+    if (basketList.length === 0) {
+      try {
+        const res = await safeFetch(
+          "https://tr.wikipedia.org/api/rest_v1/page/html/Fenerbah%C3%A7e_(basketbol_tak%C4%B1m%C4%B1)",
+        );
+        if (res && res.ok) {
+          const html = await res.text();
+          const rowsB = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
+
+          for (const row of rowsB) {
+            const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
+            if (cells.length >= 4 && cells[0] && cells[1]) {
+              const posRaw = cells[0].replace(/<[^>]+>/g, "").trim();
+              const numRaw = cells[1].replace(/<[^>]+>/g, "").trim();
+              const nameMatch =
+                cells[3]?.match(/<a[^>]*>([^<]+)<\/a>/) ||
+                cells[2]?.match(/<a[^>]*>([^<]+)<\/a>/);
+
+              if (
+                /^\d+$/.test(numRaw) &&
+                nameMatch &&
+                nameMatch[1] &&
+                !nameMatch[1].includes("Takım")
+              ) {
+                const playerName = nameMatch[1].replace(/,\s*/, " ").trim();
+                const category: Athlete["category"] =
+                  posRaw.includes("G") ||
+                  posRaw.includes("OK") ||
+                  posRaw.includes("ŞG")
+                    ? "Gard"
+                    : "Forvet/Pivot";
+
+                basketList.push({
+                  id: `wiki-bb-${numRaw}`,
+                  number: parseInt(numRaw, 10),
+                  name: playerName,
+                  position: posRaw || "Oyuncu",
+                  category,
+                  branch: "Basketbol",
+                  source: "wikipedia",
+                });
+              }
+            }
+          }
+          if (basketList.length > 0) {
+            savePersistedRoster("Basketbol", basketList);
+          }
+        }
+      } catch {
+        // fall through to persisted / season-list fallback
+      }
     }
+
+    if (basketList.length === 0) {
+      basketList =
+        loadPersistedRoster("Basketbol") || withSourceFallback("Basketbol");
+    }
+    list.push(...basketList);
   }
 
   if (branch === "Voleybol" || branch === "Tümü") {
-    let wikiVolleyFound = false;
+    let volleyList: Athlete[] = [];
     try {
       const res = await safeFetch(
         "https://tr.wikipedia.org/api/rest_v1/page/html/Fenerbah%C3%A7e_(kad%C4%B1n_voleybol_tak%C4%B1m%C4%B1)",
@@ -781,28 +794,32 @@ export const fetchAthletes = async (
               else if (posRaw.includes("Pasör") && !posRaw.includes("Çapraz"))
                 category = "Pasör";
               else if (posRaw.includes("Orta")) category = "Orta Oyuncu";
-              else category = "Smaçör";
 
-              list.push({
+              volleyList.push({
                 id: `wiki-vb-${numRaw}`,
                 number: parseInt(numRaw, 10),
                 name: name.trim(),
                 position: posRaw || "Oyuncu",
                 category,
                 branch: "Voleybol",
+                source: "wikipedia",
               });
-              wikiVolleyFound = true;
             }
           }
         }
+        if (volleyList.length > 0) {
+          savePersistedRoster("Voleybol", volleyList);
+        }
       }
-    } catch (err) {
-      console.warn("Wiki voleybol çekilemedi, fallback kullanılıyor:", err);
+    } catch {
+      // ignore wiki fetch failure
     }
 
-    if (!wikiVolleyFound) {
-      list.push(...fallbackAthletes.filter((a) => a.branch === "Voleybol"));
+    if (volleyList.length === 0) {
+      volleyList =
+        loadPersistedRoster("Voleybol") || withSourceFallback("Voleybol");
     }
+    list.push(...volleyList);
   }
 
   const extraBranches: AthleteBranch[] = [
@@ -812,7 +829,7 @@ export const fetchAthletes = async (
   ];
   for (const eb of extraBranches) {
     if (branch === eb || branch === "Tümü") {
-      list.push(...fallbackAthletes.filter((a) => a.branch === eb));
+      list.push(...withSourceFallback(eb));
     }
   }
 

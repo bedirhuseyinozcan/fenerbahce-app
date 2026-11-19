@@ -1,150 +1,133 @@
 <div align="center">
 
-  # 💛💙 Fenerbahçe Spor Kulübü Mobil Uygulaması
+  # 💛💙 Fenerbahçe 1907 — Çok Branşlı Canlı Takip & Tahmin Ligi
 
   <p align="center">
-    <strong>Sarı Lacivert sevdayı dijital dünyada yaşatan, modern ve eksiksiz taraftar mobil uygulaması.</strong>
+    <strong>Sıfır maliyetli mimariyle Futbol, Basketbol ve Voleybol canlı skorları, marş oynatıcısı, bildirim merkezi ve arkadaş grubu tahmin ligi.</strong>
   </p>
 
   <p align="center">
     <a href="https://expo.dev"><img src="https://img.shields.io/badge/Expo-SDK%2057-000020?style=for-the-badge&logo=expo&logoColor=white" alt="Expo SDK 57" /></a>
     <a href="https://reactnative.dev"><img src="https://img.shields.io/badge/React%20Native-0.86-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React Native" /></a>
     <a href="https://react.dev"><img src="https://img.shields.io/badge/React-19.2-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19" /></a>
-    <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" /></a>
-    <img src="https://img.shields.io/badge/Fenerbah%C3%A7e-1907-002D72?style=for-the-badge&logoColor=FFED00" alt="Fenerbahçe 1907" />
+    <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-6.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" /></a>
+    <img src="https://img.shields.io/badge/Cloudflare%20Worker-0%E2%82%BA-F38020?style=for-the-badge&logo=cloudflare&logoColor=white" alt="Cloudflare Worker" />
   </p>
-
-  <sub>En son teknolojilerle geliştirilmiş, canlı spor API'leri ve kesintisiz ses akışı ile donatılmış yeni nesil Fenerbahçe mobil deneyimi.</sub>
 
 </div>
 
 ---
 
-## 🌟 Öne Çıkan Özellikler
+## 🌟 Özellikler
 
-### 🏠 1. Canlı Ana Sayfa (Home Hub)
-* **Geri Sayım Sayacı (Match Countdown):** Sıradaki derbi veya lig maçına kalan gün, saat ve dakikayı canlı sayan dinamik gösterge.
-* **Son Maç Skoru & Durum:** Kulübün en son oynadığı karşılaşmanın skoru ve detayları.
-* **Canlı Puan Durumu Özeti:** Süper Lig'deki güncel sıramız ve puanımız tek bakışta.
-* **Son Dakika Haber Kartları:** Kulüpten en güncel gelişmeler ve transfer haberleri.
+### 🏠 1. Modüler Ana Sayfa & Canlı Nabız
+- **Canlı Ticker & Maç Hero Kartı:** Maç sürerken otomatik 15–20 sn polling (TanStack Query), geri sayım ve `Europe/Istanbul` takvim günüyle doğru **"BUGÜN MAÇ GÜNÜ!"** tespiti.
+- **Maç Günü Hava Durumu:** Kadıköy iç saha maçlarında Open-Meteo üzerinden saatlik/anlık hava durumu.
+- **Puan Durumu Önizlemesi & Tarihte Bugün:** Süper Lig'de Fenerbahçe sabitlenmiş canlı tablo özeti ve 28 olaylı kulüp tarihi kartı.
 
-### ⚽ 2. Canlı Puan Durumu & Fikstür (ESPN Canlı API Entegrasyonu)
-* **Otomatik ve Gerçek Zamanlı:** Manuel veri girmeye son! Dünyanın önde gelen spor veri sağlayıcısı **ESPN API** ile tam entegrasyon.
-* **Trendyol Süper Lig Tablosu:** Oynanan maç, galibiyet, beraberlik, mağlubiyet, atılan/yenilen gol, averaj ve puanlar anlık güncellenir.
-* **Form Göstergeleri:** Takımların son 5 maçtaki performans grafiği (Galibiyet/Beraberlik/Mağlubiyet).
+### ⚽ 2. Canlı Maç Merkezi 2.0 (`app/mac/[id].tsx`)
+- **Dakika Dakika Anlatım & Olaylar:** ESPN `commentary` + `keyEvents` verisinden Türkçe saha olayları, sarı/kırmızı kartlar, VAR kararları ve değişiklikler.
+- **Dinamik Saha Dizilişi & Momentum:** Çarpışma çözücülü formasyon tahtası, gerçek istatistiklerden hesaplanan momentum ve gol anında canlı banner + haptic titreşim.
+- **Skor Tahmini & Tek Tık Hatırlatma (🔔):** Maç başlamadan skor kaydetme (3P tam skor / 1P doğru sonuç) ve 1 saat / 15 dk öncesi için yerel hatırlatma planlama.
 
-### 👥 3. Futbol Takımı & Kadro
-* **Pozisyona Göre Filtreleme:** Kaleciler, Defans, Orta Saha ve Forvet hatları.
-* **Detaylı Oyuncu Bilgileri:** Forma numarası, uyruk ve mevki detayları.
-* **Teknik Heyet:** Teknik Direktör Emre Belözoğlu ve ekibi.
+### 🏆 3. Arkadaş Tahmin Ligi (`app/tahmin-ligi.tsx`)
+- **Oda Kodu & Takma Ad:** `FBXXXX` oda kodu oluşturup arkadaş grubuyla aynı sıralamada yarışma (`worker/` D1 veritabanı üzerinden senkron veya Worker olmadan yerel mod + WhatsApp/Share kartı).
 
-### 🎵 4. Marşlar & Besteler (Cloud CDN Audio Player)
-* **Yeni Nesil `expo-audio` Motoru:** Expo SDK 57'nin en güncel yerel ses altyapısı.
-* **+10s İleri / -10s Geri Sarma:** Şarkının istediğiniz yerine anında atlayabileceğiniz tek dokunuşluk sarma butonları.
-* **İnteraktif İlerleme Çubuğu (Tap-to-Seek):** Zaman çubuğunda istenen saniyeye dokunarak zıplama ve canlı imleç (thumb).
-* **Şarkı Sözleri Modalı:** Parçaların tüm kıtalarını içeren, sarı-lacivert vurgulu açılır söz penceresi.
-* **0 MB Uygulama Boyutu:** Tüm parçalar küresel **Fastly/GitHub CDN** üzerinden anlık parçalı akışla (HTTP 206 Range Streaming) çalar; uygulamanın boyutunu şişirmez.
-* **10 Efsane Parça:** Kıraç 100. Yıl, Nesrin Sipahi Yaşa Fenerbahçe, Selçuk Abay Bizler İnandık, Samanyolu, Ne Sevmek Ne Sevilmek, Bir Sabah Tuttu Babam Elimden ve daha fazlası.
+### 👥 4. Kadro & Oyuncu Profili 2.0 (`app/sporcular.tsx`)
+- **Çok Kaynaklı Canlı Kadrolar:** Futbolda ESPN (+ sezon istatistiği & fiziksel profil), Erkek Basketbolda **EuroLeague v2/v3 canlı kadro & sezon ortalamaları** (Wikipedia yedekli), Kadın Voleybolda Wikipedia ve diğer branşlarda sezon listeleri.
 
-### 📰 5. Haberler & Medya
-* **TRT Spor & Kulüp Akışı:** XML/RSS ve API servisleri üzerinden anlık çekilen temiz haber akışı.
-* **Detaylı Okuma:** Haber görseli, yayınlanma saati ve tam metin okuma görünümü.
+### 🔔 5. Bildirim Merkezi & Cloudflare Maç Motoru (`app/bildirimler.tsx` & `worker/`)
+- **Sunucusuz Yerel Hatırlatmalar:** `expo-notifications` ile maçtan 1 saat ve 15 dk önce yerel uyarılar.
+- **Gizli `ntfy.sh` Kanalı + 7/24 Cloudflare BFF:** `worker/` klasöründeki Cron + SQLite Durable Object (`MatchWatcher`) + D1 altyapısı sayesinde bilgisayar kapalıyken bile ~15 sn içinde gol, kırmızı kart, VAR iptali ve çeyrek sonu push bildirimi.
 
-### 🎨 6. Tasarım ve Tema
-* **Resmi Kulüp Renkleri:** Lacivert (`#002D72`) ve Kanarya Sarısı (`#FFED00`).
-* **Karanlık / Aydınlık Mod:** Telefonun sistem temasıyla tam uyumlu dinamik renk paleti.
+### 🎵 6. Global Marşlar 2.0 (`app/(tabs)/marslar.tsx`)
+- **Arka Plan Sesi & Yüzen Mini Oynatıcı:** Tüm ekranlarda görünen `MiniAnthemPlayer`, favoriler, karıştırma, tek parça/liste tekrar, sarma ve senkronize söz modalı.
+
+### 📊 7. Puan Durumları, Derbi Merkezi, Tarih Arşivi & Haberler
+- **Puan Durumu (`app/puan-durumu.tsx`):** Trendyol Süper Lig, UEFA Şampiyonlar Ligi, UEFA Avrupa Ligi ve EuroLeague tabloları.
+- **Derbi Merkezi (`app/derbi-merkezi.tsx`):** GS, BJK ve TS karşısındaki form ve rekabet özeti.
+- **Tarihte Fenerbahçe (`app/tarih-arsivi.tsx`):** 28 dönüm noktası, kategori/yıl arama ve paylaşım.
+- **Çoklu RSS Haber Akışı (`app/haberler.tsx`):** Fotomaç, TRT Spor ve NTV Spor (Fenerbahçe filtreli) tek akışta.
 
 ---
 
 ## 🛠️ Teknoloji Yığını
 
-| Alan | Teknoloji | Versiyon / Detay |
-| :--- | :--- | :--- |
-| **Çekirdek** | [React Native](https://reactnative.dev) | `0.86.3` |
-| **Geliştirme Platformu** | [Expo](https://expo.dev) | `SDK 57.0.0` |
-| **Kütüphane** | [React](https://react.dev) | `19.2.3` (Modern Concurrency) |
-| **Yönlendirme / Navigasyon** | [Expo Router](https://docs.expo.dev/router/introduction/) | `~57.0.0` (File-based routing) |
-| **Programlama Dili** | [TypeScript](https://www.typescriptlang.org) | `~5.9.2` (Tam tip güvenliği) |
-| **Ses Oynatıcı** | [expo-audio](https://docs.expo.dev/versions/latest/sdk/audio/) | `~57.0.5` (Native Audio Session) |
-| **Görsel Optimizasyonu** | [expo-image](https://docs.expo.dev/versions/latest/sdk/image/) | `~57.0.0` (Hardware-accelerated cache) |
-| **Spor Veri Sağlayıcı** | ESPN Public API | Canlı Süper Lig Puan Tablosu & Maçlar |
-| **Ses Dağıtım Ağı (CDN)** | GitHub Fastly CDN | HTTP 206 Partial Content Audio Streaming |
+| Katman | Teknoloji |
+| :--- | :--- |
+| **İstemci** | Expo SDK 57, React 19.2, React Native 0.86, Expo Router, TypeScript 6.0 |
+| **Durum & Önbellek** | TanStack Query v5, `expo-sqlite` kalıcı depolama (platform ayrımlı) |
+| **Medya & UI** | `expo-audio`, `expo-image`, `expo-haptics`, `react-native-reanimated`, Semantik Aydınlık/Karanlık Tema |
+| **Bildirimler** | `expo-notifications`, `ntfy.sh`, Expo Push Service |
+| **Sunucu (Opsiyonel 0 ₺)** | Cloudflare Workers + D1 SQLite + SQLite Durable Objects (`worker/`) |
+| **Test & CI** | Vitest (`npm test`), TypeScript (`npm run typecheck`), GitHub Actions (`.github/workflows/ci.yml`) |
 
 ---
 
-## 📁 Proje Dizin Yapısı
+## 📁 Proje Yapısı
 
 ```text
 fenerbahce-app/
-├── app/                          # Expo Router sayfa ve tab navigasyonu
-│   ├── (tabs)/                   # Alt menü sekmeleri
-│   │   ├── index.tsx             # Ana Sayfa (Canlı Skor, Geri Sayım, Tarihte Bugün, Puan Özeti)
-│   │   ├── fikstur.tsx           # Fikstür & Canlı / Gelecek / Biten Maçlar
-│   │   ├── marslar.tsx           # Marşlar & Besteler (CDN Ses Oynatıcı)
-│   │   ├── daha.tsx              # Tahmin Ligi, ntfy Bildirim Kanalı, Menü & Bağlantılar
-│   │   └── _layout.tsx           # Tab Bar yapılandırması
-│   ├── mac/[id].tsx              # Canlı Maç Merkezi (Saha Dizilişi, Olaylar, İstatistik, Tahmin)
-│   ├── sporcular.tsx             # 6 Branş A Takım Kadroları & Oyuncu Profilleri
-│   ├── puan-durumu.tsx           # Süper Lig, Şampiyonlar Ligi & EuroLeague Puan Durumu
-│   ├── haberler.tsx              # Çoklu RSS Haber Akışı
-│   └── _layout.tsx               # Kök Layout & Tema Sağlayıcı
-├── components/                   # MatchCard, SoccerPitch, CloudinaryImage vb.
-├── constants/                    # Renk paletleri (Colors.ts - Sarı & Lacivert)
-├── data/                         # Marşlar (marslarData.ts) ve Tarihte Bugün (historyData.ts)
-├── services/                     # Canlı API Entegrasyonları (ESPN, EuroLeague, TheSportsDB, RSS, ntfy)
-│   ├── fixtureService.ts         # Çoklu branş ve turnuva canlı fikstür servisi
-│   ├── matchDetailService.ts     # Canlı maç merkezi, kadro ve olay motoru
-│   ├── standingsService.ts       # Süper Lig, ŞL ve EuroLeague puan tablosu servisi
-│   ├── athleteService.ts         # 6 branş sporcu kadro servisi
-│   ├── newsService.ts            # Çoklu RSS haber birleştirici
-│   └── fanEngagementService.ts   # Skor tahmin ligi ve ntfy.sh sıfır maliyetli bildirim servisi
-├── types/                        # TypeScript model ve arayüz tanımları
-├── app.json                      # Expo SDK 57 yapılandırma dosyası
-└── tsconfig.json                 # TypeScript kuralları
+├── app/
+│   ├── (tabs)/
+│   │   ├── index.tsx           # Ana Sayfa
+│   │   ├── fikstur.tsx         # Canlı / Yaklaşan / Biten Fikstür
+│   │   ├── marslar.tsx         # Marşlar & Besteler
+│   │   ├── daha.tsx            # Tema, Özet & Kısayollar
+│   │   └── _layout.tsx
+│   ├── mac/[id].tsx            # Canlı Maç Merkezi
+│   ├── tahmin-ligi.tsx         # Çok Oyunculu Arkadaş Tahmin Ligi
+│   ├── bildirimler.tsx         # Bildirim Merkezi & Worker Eşitleme
+│   ├── tarih-arsivi.tsx        # 1907'den Bugüne Tarih Arşivi
+│   ├── sporcular.tsx           # 6 Branş Kadro & Oyuncu İstatistikleri
+│   ├── puan-durumu.tsx         # Süper Lig / ŞL / UEL / EuroLeague
+│   ├── derbi-merkezi.tsx       # GS / BJK / TS Derbi Merkezi
+│   ├── haberler.tsx            # Çoklu RSS Haber Akışı
+│   └── _layout.tsx             # Kök Query, Tema, Bildirim & Mini Player
+├── features/                   # Modüler UI ve parser'lar (home, matches, anthems, squads)
+├── services/                   # API istemcileri, kalıcı cache, bildirim & tahmin ligi
+├── context/                    # ThemeContext & AnthemPlayerContext
+├── data/                       # Marşlar & Tarihte Fenerbahçe verisi
+├── utils/                      # safeFetch, storage (SQLite/web), haptics, browser
+├── worker/                     # Cloudflare Free Tier BFF (Cron + DO + D1 + Push + Tahmin API)
+├── backend/                    # Yerel Node.js canlı maç izleyicisi (liveWatcher.mjs)
+├── __tests__/                  # Vitest birim testleri
+├── eas.json                    # Android preview APK & EAS Update profilleri
+└── .github/workflows/ci.yml    # Otomatik typecheck + test CI akışı
 ```
 
 ---
 
-## 🚀 Kurulum ve Çalıştırma
+## 🚀 Kurulum, Test ve Dağıtım
 
-Projeyi bilgisayarınızda veya telefonunuzda çalıştırmak için aşağıdaki adımları takip edin:
-
-### 1. Gereksinimler
-* [Node.js](https://nodejs.org) (v18 veya üzeri önerilir)
-* [Expo Go](https://expo.dev/client) mobil uygulaması (Android için Play Store, iOS için App Store'dan ücretsiz indirebilirsiniz)
-
-### 2. Projeyi Klonlayın
-```bash
-git clone https://github.com/bedirhuseyinozcan/fenerbahce-app.git
-cd fenerbahce-app
-```
-
-### 3. Bağımlılıkları Yükleyin
+### 1. Geliştirme & Test
 ```bash
 npm install
-```
-
-### 4. Geliştirme Sunucusunu Başlatın
-```bash
+npm run typecheck
+npm test
 npx expo start
 ```
 
-### 5. Telefonda Çalıştırma
-* Terminalde açılan **QR kodu**, Android telefonunuzda **Expo Go** uygulamasından okutun; iOS'ta ise standart Kamera uygulamasından taratın.
-* Kodlarda değişiklik yaptığınızda Fast Refresh sayesinde anında telefonunuzda canlı güncellenecektir.
+### 2. Cloudflare Worker Maç Motorunu Kurma (0 ₺)
+Ayrıntılı 5 adımlık kurulum için [worker/README.md](worker/README.md) dosyasına bakın:
+```bash
+cd worker
+npm install
+npm run typecheck
+npx wrangler login
+```
+
+### 3. Android APK Üretme & OTA Güncelleme (`eas.json`)
+Expo Go üzerinde Android uzak push bildirimleri kısıtlı olduğu için gerçek bildirimlerde **preview/development build** önerilir:
+```bash
+# Tek seferlik APK üretimi (arkadaşlara paylaşılabilir)
+npx eas build --platform android --profile preview
+
+# Sonraki JS/UI değişikliklerini APK yenilemeden gönderme
+npx eas update --channel preview
+```
 
 ---
 
-## 💛💙 Katkıda Bulunma
-
-1. Bu depoyu Fork'layın (`fork`).
-2. Yeni özellik dalı açın (`git checkout -b feature/harika-ozellik`).
-3. Değişikliklerinizi commit edin (`git commit -m 'feat: yeni özellik eklendi'`).
-4. Dalınıza push yapın (`git push origin feature/harika-ozellik`).
-5. Bir **Pull Request** açın.
-
----
-
-<div align="center">
-  <sub>Mustafa Kemal Atatürk'ün izinde, Sarı-Lacivert renklerin peşinde... 🌟</sub>
-</div>
+## 🔒 Güvenlik ve Telif Notu
+- Arkadaş grubu içi kişisel kullanım için deponuzu **Private** tutmanız ve [data/marslarData.ts](data/marslarData.ts) içindeki ses dosyalarını herkese açık GitHub Release yerine kendi kapalı **Cloudflare R2** alanınıza (ücretsiz 10 GB) taşımanız önerilir.

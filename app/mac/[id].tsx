@@ -12,6 +12,7 @@ import {
   savePredictionForMatch,
 } from "@/services/fanEngagementService";
 import { resolveMatchStatus } from "@/services/fixtureService";
+import { syncPredictionToWorker } from "@/services/predictionLeagueService";
 import { PredictionData } from "@/types";
 import {
   triggerSelectionHaptic,
@@ -47,6 +48,7 @@ export default function MatchDetailScreen() {
   const [predHome, setPredHome] = useState<number>(2);
   const [predAway, setPredAway] = useState<number>(0);
   const [savedPred, setSavedPred] = useState<PredictionData | null>(null);
+  const [predSyncNote, setPredSyncNote] = useState<string>("");
   const [showGoalAlert, setShowGoalAlert] = useState(false);
 
   const { data: match, isLoading, refetch } = useMatchDetailQuery(matchKey);
@@ -62,6 +64,7 @@ export default function MatchDetailScreen() {
       setPredHome(2);
       setPredAway(0);
     }
+    setPredSyncNote("");
     setShowGoalAlert(false);
   }, [matchKey]);
 
@@ -103,6 +106,9 @@ export default function MatchDetailScreen() {
     triggerSuccessHaptic();
     const saved = savePredictionForMatch(match.id, predHome, predAway);
     setSavedPred(saved);
+    syncPredictionToWorker(match.id, predHome, predAway)
+      .then((res) => setPredSyncNote(res.message))
+      .catch(() => {});
   };
 
   if (isLoading && !match) {
@@ -268,6 +274,8 @@ export default function MatchDetailScreen() {
               predHome={predHome}
               predAway={predAway}
               savedPred={savedPred}
+              syncNote={predSyncNote || undefined}
+              onOpenLeague={() => router.push("/tahmin-ligi" as any)}
               onChangeHome={(delta) =>
                 setPredHome((v) => Math.max(0, v + delta))
               }

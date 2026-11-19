@@ -27,6 +27,32 @@ export interface PredictionData {
   createdAt: string;
 }
 
+export interface PredictionLeagueProfile {
+  nickname: string;
+  roomCode: string;
+}
+
+export interface RemotePredictionRow {
+  roomCode: string;
+  deviceId: string;
+  nickname: string;
+  matchId: string;
+  homeScore: number;
+  awayScore: number;
+  createdAt: string;
+}
+
+export interface LeaderboardEntry {
+  deviceId: string;
+  nickname: string;
+  totalPoints: number;
+  exactHits: number;
+  correctOutcomes: number;
+  totalPredictions: number;
+  scoredPredictions: number;
+  isMe: boolean;
+}
+
 export interface HistoricalEvent {
   id: string;
   day: number;
@@ -180,6 +206,26 @@ export type AthleteCategory =
   | "Orta Oyuncu"
   | "Libero";
 
+export type AthleteDataSource =
+  | "espn"
+  | "euroleague"
+  | "wikipedia"
+  | "season-list";
+
+export interface AthleteSeasonStats {
+  appearances?: number;
+  goals?: number;
+  assists?: number;
+  yellowCards?: number;
+  redCards?: number;
+  minutesPlayed?: number;
+  pointsPerGame?: number;
+  reboundsPerGame?: number;
+  assistsPerGame?: number;
+  pir?: number;
+  sourceLabel?: string;
+}
+
 export interface Athlete {
   id: string;
   name: string;
@@ -189,6 +235,11 @@ export interface Athlete {
   country?: string;
   branch: AthleteBranch;
   image?: string;
+  age?: number;
+  height?: string;
+  weight?: string;
+  source?: AthleteDataSource;
+  stats?: AthleteSeasonStats;
 }
 
 export interface NotificationPreferences {
