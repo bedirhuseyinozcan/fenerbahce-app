@@ -427,7 +427,7 @@ export default function BildirimlerScreen() {
         <TextInput
           value={prefs.workerBaseUrl}
           onChangeText={(val) => updatePrefs({ workerBaseUrl: val })}
-          placeholder="https://fenerbahce-match-engine.hesap.workers.dev"
+          placeholder="https://fenerbahce-match-engine.fb-bedir.workers.dev"
           placeholderTextColor={theme.secondaryText}
           autoCapitalize="none"
           autoCorrect={false}

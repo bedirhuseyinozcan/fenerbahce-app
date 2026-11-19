@@ -3,6 +3,9 @@
     "name": "Fenerbahçe 1907",
     "slug": "fenerbahce-app",
     "version": "1.1.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "fenerbahceapp",
@@ -17,12 +20,24 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.fbbedir.fenerbahce1907",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#072146"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -53,6 +68,16 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "946675c7-3e15-43f2-8b3f-85cbb99e6f3c"
+      }
+    },
+    "owner": "hsifuzuli",
+    "updates": {
+      "url": "https://u.expo.dev/946675c7-3e15-43f2-8b3f-85cbb99e6f3c"
     }
   }
 }

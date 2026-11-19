@@ -10,6 +10,12 @@ import { getJson, getString, setJson, setString } from "@/utils/storage";
 const PREFS_KEY = "fb_notification_prefs_v1";
 const DEVICE_ID_KEY = "fb_device_id_v1";
 const MATCH_REMINDERS_KEY = "fb_match_reminders_v1";
+const NOTIF_PROMPTED_KEY = "fb_notif_prompted_v1";
+const AUTO_SYNC_TS_KEY = "fb_auto_notif_sync_ts_v1";
+const DEFAULT_AUTO_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+export const DEFAULT_WORKER_URL =
+  "https://fenerbahce-match-engine.fb-bedir.workers.dev";
 
 export const DEFAULT_NOTIFICATION_PREFS: NotificationPreferences = {
   enabled: true,
@@ -27,7 +33,7 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPreferences = {
     lineups: true,
     quarterAndSetEnds: true,
   },
-  workerBaseUrl: "",
+  workerBaseUrl: DEFAULT_WORKER_URL,
 };
 
 export function getNotificationPrefs(): NotificationPreferences {
@@ -40,6 +46,9 @@ export function getNotificationPrefs(): NotificationPreferences {
     };
   }
 
+  const rawUrl =
+    typeof stored.workerBaseUrl === "string" ? stored.workerBaseUrl.trim() : "";
+
   return {
     ...DEFAULT_NOTIFICATION_PREFS,
     ...stored,
@@ -51,8 +60,7 @@ export function getNotificationPrefs(): NotificationPreferences {
       ...DEFAULT_NOTIFICATION_PREFS.events,
       ...(stored.events || {}),
     },
-    workerBaseUrl:
-      typeof stored.workerBaseUrl === "string" ? stored.workerBaseUrl : "",
+    workerBaseUrl: rawUrl || DEFAULT_WORKER_URL,
   };
 }
 
@@ -105,6 +113,31 @@ export function getTrackedMatchReminders(): Record<string, string[]> {
 
 export function setTrackedMatchReminders(map: Record<string, string[]>): void {
   setJson(MATCH_REMINDERS_KEY, map);
+}
+
+export function hasPromptedNotificationPermission(): boolean {
+  return getString(NOTIF_PROMPTED_KEY) === "1";
+}
+
+export function markNotificationPermissionPrompted(): void {
+  setString(NOTIF_PROMPTED_KEY, "1");
+}
+
+export function shouldRunAutoNotificationSync(
+  minIntervalMs: number = DEFAULT_AUTO_SYNC_INTERVAL_MS,
+  nowMs: number = Date.now(),
+): boolean {
+  const raw = getString(AUTO_SYNC_TS_KEY);
+  if (!raw) return true;
+  const lastMs = parseInt(raw, 10);
+  if (!Number.isFinite(lastMs)) return true;
+  return nowMs - lastMs >= minIntervalMs;
+}
+
+export function markAutoNotificationSyncDone(
+  nowMs: number = Date.now(),
+): void {
+  setString(AUTO_SYNC_TS_KEY, String(nowMs));
 }
 
 function isBranchEnabled(

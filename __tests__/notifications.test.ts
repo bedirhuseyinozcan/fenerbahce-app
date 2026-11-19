@@ -8,10 +8,13 @@ vi.mock("react-native", () => ({
 import {
   computeReminderTriggers,
   DEFAULT_NOTIFICATION_PREFS,
+  DEFAULT_WORKER_URL,
   generatePrivateNtfyTopic,
   getNotificationPrefs,
   getOrCreateDeviceId,
+  markAutoNotificationSyncDone,
   saveNotificationPrefs,
+  shouldRunAutoNotificationSync,
 } from "@/services/notificationPrefs";
 import { MatchData } from "@/types";
 import { clearMemoryStorage } from "@/utils/storage";
@@ -21,8 +24,12 @@ describe("notificationPrefs", () => {
     clearMemoryStorage();
   });
 
-  it("persists partial preference updates cleanly", () => {
+  it("persists partial preference updates cleanly and defaults to live Worker URL", () => {
+    expect(DEFAULT_NOTIFICATION_PREFS.workerBaseUrl).toBe(DEFAULT_WORKER_URL);
     expect(getNotificationPrefs()).toEqual(DEFAULT_NOTIFICATION_PREFS);
+
+    saveNotificationPrefs({ workerBaseUrl: "   " });
+    expect(getNotificationPrefs().workerBaseUrl).toBe(DEFAULT_WORKER_URL);
 
     const updated = saveNotificationPrefs({
       remind60Min: false,
@@ -35,6 +42,14 @@ describe("notificationPrefs", () => {
     expect(updated.branches.Basketbol).toBe(false);
     expect(updated.events.goals).toBe(true);
     expect(updated.workerBaseUrl).toBe("https://example.workers.dev/");
+  });
+
+  it("tracks auto notification sync cadence", () => {
+    const now = 1_700_000_000_000;
+    expect(shouldRunAutoNotificationSync(10_000, now)).toBe(true);
+    markAutoNotificationSyncDone(now);
+    expect(shouldRunAutoNotificationSync(10_000, now + 5_000)).toBe(false);
+    expect(shouldRunAutoNotificationSync(10_000, now + 10_000)).toBe(true);
   });
 
   it("keeps deviceId stable and generates private ntfy topics", () => {
