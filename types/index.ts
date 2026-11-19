@@ -124,6 +124,30 @@ export interface MatchStat {
   homePercentage: number;
 }
 
+export type CommentaryImportance =
+  | "goal"
+  | "card"
+  | "chance"
+  | "sub"
+  | "whistle"
+  | "info";
+
+export interface CommentaryItem {
+  id: string;
+  clock: string;
+  minute: number;
+  text: string;
+  importance: CommentaryImportance;
+  team?: "home" | "away";
+}
+
+export interface MatchMomentum {
+  homeScore: number;
+  awayScore: number;
+  homePercentage: number;
+  label: string;
+}
+
 export interface MatchDetailData extends MatchData {
   status: "upcoming" | "live" | "finished";
   referee?: string;
@@ -132,6 +156,8 @@ export interface MatchDetailData extends MatchData {
   homeLineup: Lineup;
   awayLineup: Lineup;
   stats: MatchStat[];
+  commentary?: CommentaryItem[];
+  momentum?: MatchMomentum | null;
 }
 
 export type AthleteBranch =

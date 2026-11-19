@@ -33,6 +33,41 @@ export function savePredictionForMatch(
   return entry;
 }
 
+export function evaluatePredictionResult(
+  prediction: PredictionData | null,
+  match: Pick<MatchData, "status" | "homeScore" | "awayScore">,
+): {
+  status: "exact" | "outcome" | "miss" | "pending";
+  points: 0 | 1 | 3;
+} {
+  if (
+    !prediction ||
+    resolveMatchStatus(match) !== "finished" ||
+    match.homeScore == null ||
+    match.awayScore == null
+  ) {
+    return { status: "pending", points: 0 };
+  }
+
+  const actualH = parseInt(String(match.homeScore), 10);
+  const actualA = parseInt(String(match.awayScore), 10);
+  if (isNaN(actualH) || isNaN(actualA)) {
+    return { status: "pending", points: 0 };
+  }
+
+  if (actualH === prediction.homeScore && actualA === prediction.awayScore) {
+    return { status: "exact", points: 3 };
+  }
+
+  const predDiff = Math.sign(prediction.homeScore - prediction.awayScore);
+  const actualDiff = Math.sign(actualH - actualA);
+  if (predDiff === actualDiff) {
+    return { status: "outcome", points: 1 };
+  }
+
+  return { status: "miss", points: 0 };
+}
+
 export function calculatePredictionStats(matches: MatchData[]): {
   totalPredictions: number;
   exactHits: number;
@@ -48,27 +83,15 @@ export function calculatePredictionStats(matches: MatchData[]): {
   Object.values(all).forEach((pred) => {
     totalPredictions += 1;
     const match = matches.find((m) => m.id === pred.matchId);
-    if (
-      match &&
-      resolveMatchStatus(match) === "finished" &&
-      match.homeScore != null &&
-      match.awayScore != null
-    ) {
-      const actualH = parseInt(String(match.homeScore), 10);
-      const actualA = parseInt(String(match.awayScore), 10);
-      if (!isNaN(actualH) && !isNaN(actualA)) {
-        if (actualH === pred.homeScore && actualA === pred.awayScore) {
-          exactHits += 1;
-          totalPoints += 3;
-        } else {
-          const predDiff = Math.sign(pred.homeScore - pred.awayScore);
-          const actualDiff = Math.sign(actualH - actualA);
-          if (predDiff === actualDiff) {
-            correctOutcomes += 1;
-            totalPoints += 1;
-          }
-        }
-      }
+    if (!match) return;
+
+    const evaluated = evaluatePredictionResult(pred, match);
+    if (evaluated.status === "exact") {
+      exactHits += 1;
+      totalPoints += evaluated.points;
+    } else if (evaluated.status === "outcome") {
+      correctOutcomes += 1;
+      totalPoints += evaluated.points;
     }
   });
 

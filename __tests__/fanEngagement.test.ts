@@ -7,6 +7,7 @@ vi.mock("react-native", () => ({
 
 import {
   calculatePredictionStats,
+  evaluatePredictionResult,
   getPredictionForMatch,
   savePredictionForMatch,
 } from "@/services/fanEngagementService";
@@ -124,5 +125,49 @@ describe("fanEngagementService predictions", () => {
       correctOutcomes: 1,
       totalPoints: 4,
     });
+  });
+
+  it("evaluates individual predictions with evaluatePredictionResult", () => {
+    const pred = savePredictionForMatch("eval-1", 2, 1);
+
+    expect(
+      evaluatePredictionResult(pred, {
+        status: "finished",
+        homeScore: "2",
+        awayScore: "1",
+      }),
+    ).toEqual({ status: "exact", points: 3 });
+
+    expect(
+      evaluatePredictionResult(pred, {
+        status: "finished",
+        homeScore: "3",
+        awayScore: "0",
+      }),
+    ).toEqual({ status: "outcome", points: 1 });
+
+    expect(
+      evaluatePredictionResult(pred, {
+        status: "finished",
+        homeScore: "0",
+        awayScore: "1",
+      }),
+    ).toEqual({ status: "miss", points: 0 });
+
+    expect(
+      evaluatePredictionResult(pred, {
+        status: "live",
+        homeScore: "2",
+        awayScore: "1",
+      }),
+    ).toEqual({ status: "pending", points: 0 });
+
+    expect(
+      evaluatePredictionResult(null, {
+        status: "finished",
+        homeScore: "2",
+        awayScore: "1",
+      }),
+    ).toEqual({ status: "pending", points: 0 });
   });
 });
