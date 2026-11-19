@@ -13,8 +13,5 @@
     "@cloudflare/workers-types": "^5.20261118.1",
     "typescript": "^5.9.3",
     "wrangler": "^4.10.0"
-  },
-  "dependencies": {
-    "fenerbahce-app": "file:.."
   }
 }
