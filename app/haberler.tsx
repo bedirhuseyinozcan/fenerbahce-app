@@ -1,46 +1,46 @@
-import Colors from "@/constants/Colors";
-import { fetchNews } from "@/services/newsService";
-import { NewsData } from "@/types";
+import { NewsCardSkeleton } from "@/components/ui/Skeleton";
+import { Radius } from "@/constants/theme";
+import { useAppTheme } from "@/context/ThemeContext";
+import { useNewsQuery } from "@/hooks/useSportsQueries";
+import { openInAppUrl } from "@/utils/browser";
+import { triggerSelectionHaptic } from "@/utils/haptics";
 import { Image } from "expo-image";
 import { Stack } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
-  Linking,
   RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 
-const NEWS_CATEGORIES = ["TÜMÜ", "TRANSFER", "FUTBOL", "BASKETBOL", "VOLEYBOL", "KULÜP"];
+const NEWS_CATEGORIES = [
+  "TÜMÜ",
+  "TRANSFER",
+  "FUTBOL",
+  "BASKETBOL",
+  "VOLEYBOL",
+  "KULÜP",
+];
 
 export default function HaberlerScreen() {
-  const colorScheme = useColorScheme() ?? "light";
-  const theme = Colors[colorScheme];
-  const [news, setNews] = useState<NewsData[]>([]);
+  const { theme, brand } = useAppTheme();
   const [selectedCategory, setSelectedCategory] = useState("TÜMÜ");
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadData = useCallback(async (force: boolean = false) => {
-    const data = await fetchNews(force);
-    setNews(data);
-    setLoading(false);
-    setRefreshing(false);
-  }, []);
+  const { data: news = [], isLoading, refetch } = useNewsQuery();
+  const loading = isLoading && news.length === 0;
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    loadData(true);
-  }, [loadData]);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetch]);
 
   const filteredNews = useMemo(() => {
     if (selectedCategory === "TÜMÜ") return news;
@@ -49,29 +49,18 @@ export default function HaberlerScreen() {
     );
   }, [news, selectedCategory]);
 
-  const handleOpenLink = async (url: string) => {
-    try {
-      if (url) {
-        await Linking.openURL(url);
-      }
-    } catch (err) {
-      console.warn("Haber linki açılamadı:", err);
-    }
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen
         options={{
           title: "Kulüp & Transfer Haberleri",
-          headerStyle: { backgroundColor: Colors.brand.navy },
-          headerTintColor: Colors.brand.yellow,
+          headerStyle: { backgroundColor: brand.navy },
+          headerTintColor: brand.yellow,
           headerBackTitle: "Geri",
         }}
       />
 
-      {/* Kategori Filtre Hapları (Faz 5: Akıllı Haber Akışı) */}
-      <View style={styles.filterRow}>
+      <View style={[styles.filterRow, { borderBottomColor: theme.divider }]}>
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -86,19 +75,20 @@ export default function HaberlerScreen() {
                   styles.filterPill,
                   {
                     backgroundColor: isActive
-                      ? Colors.brand.navy
+                      ? brand.navy
                       : theme.cardBackground,
-                    borderColor: isActive
-                      ? Colors.brand.yellow
-                      : theme.placeholder,
+                    borderColor: isActive ? brand.yellow : theme.border,
                   },
                 ]}
-                onPress={() => setSelectedCategory(item)}
+                onPress={() => {
+                  triggerSelectionHaptic();
+                  setSelectedCategory(item);
+                }}
               >
                 <Text
                   style={[
                     styles.filterPillText,
-                    { color: isActive ? Colors.brand.yellow : theme.text },
+                    { color: isActive ? brand.yellow : theme.text },
                   ]}
                 >
                   {item}
@@ -110,11 +100,11 @@ export default function HaberlerScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.brand.navy} />
-          <Text style={[styles.loadingText, { color: theme.secondaryText }]}>
-            Haberler yükleniyor...
-          </Text>
+        <View style={styles.listContainer}>
+          <NewsCardSkeleton />
+          <NewsCardSkeleton />
+          <NewsCardSkeleton />
+          <NewsCardSkeleton />
         </View>
       ) : (
         <FlatList
@@ -126,17 +116,20 @@ export default function HaberlerScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={Colors.brand.navy}
-              colors={[Colors.brand.navy, Colors.brand.yellow]}
+              tintColor={theme.accent}
+              colors={[brand.navy, brand.yellow]}
             />
           }
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[
                 styles.newsCard,
-                { backgroundColor: theme.cardBackground },
+                {
+                  backgroundColor: theme.cardBackground,
+                  borderColor: theme.border,
+                },
               ]}
-              onPress={() => handleOpenLink(item.link)}
+              onPress={() => openInAppUrl(item.link)}
               activeOpacity={0.75}
             >
               {item.image ? (
@@ -155,7 +148,9 @@ export default function HaberlerScreen() {
                 />
               )}
               <View style={styles.newsContent}>
-                <Text style={styles.newsTag}>{item.category}</Text>
+                <Text style={[styles.newsTag, { color: theme.accent }]}>
+                  {item.category}
+                </Text>
                 <Text
                   style={[styles.newsTitle, { color: theme.text }]}
                   numberOfLines={2}
@@ -189,7 +184,6 @@ const styles = StyleSheet.create({
   },
   filterRow: {
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   filterPill: {
     paddingHorizontal: 14,
@@ -208,26 +202,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 50,
   },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 13,
-  },
   listContainer: {
     padding: 16,
     paddingBottom: 40,
   },
   newsCard: {
     flexDirection: "row",
-    borderRadius: 12,
+    borderRadius: Radius.md,
     overflow: "hidden",
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.05)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
   newsImage: {
     width: 105,
@@ -239,7 +223,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   newsTag: {
-    color: Colors.brand.navy,
     fontSize: 10,
     fontWeight: "bold",
   },

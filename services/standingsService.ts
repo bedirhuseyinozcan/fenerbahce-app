@@ -1,6 +1,7 @@
 import { getEuroLeagueSeasonCode } from "@/services/fixtureService";
 import { TeamStanding } from "@/types";
 import { safeFetch } from "@/utils/safeFetch";
+import { getJson, setJson } from "@/utils/storage";
 
 export type StandingsLeagueKey = "superlig" | "champions" | "euroleague";
 
@@ -13,30 +14,16 @@ const CACHE_TTL_MS = 60 * 1000;
 function loadPersistedStandings(
   league: StandingsLeagueKey,
 ): TeamStanding[] | null {
-  try {
-    if (typeof window !== "undefined" && window.localStorage) {
-      const raw = window.localStorage.getItem(`fb_standings_v6_${league}`);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    }
-  } catch {}
-  return null;
+  const parsed = getJson<TeamStanding[]>(`fb_standings_v6_${league}`);
+  return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
 }
 
 function savePersistedStandings(
   league: StandingsLeagueKey,
   data: TeamStanding[],
 ): void {
-  try {
-    if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.setItem(
-        `fb_standings_v6_${league}`,
-        JSON.stringify(data),
-      );
-    }
-  } catch {}
+  if (!Array.isArray(data) || data.length === 0) return;
+  setJson(`fb_standings_v6_${league}`, data);
 }
 
 export function getCachedStandingsSync(
@@ -97,29 +84,15 @@ function extractStandingsEntries(data: any): any[] {
 }
 
 async function fetchRawStandingsJson(slug: string): Promise<any | null> {
-  const urls = [
+  const res = await safeFetch(
     `https://site.api.espn.com/apis/v2/sports/soccer/${slug}/standings`,
-    `https://site.web.api.espn.com/apis/v2/sports/soccer/${slug}/standings`,
-  ];
-
-  for (const u of urls) {
-    try {
-      const res = await fetch(u);
-      if (res.ok) return await res.json();
-    } catch {
-      // ignore
-    }
+  );
+  if (!res || !res.ok) return null;
+  try {
+    return await res.json();
+  } catch {
+    return null;
   }
-
-  const fallbackRes = await safeFetch(urls[0]);
-  if (fallbackRes && fallbackRes.ok) {
-    try {
-      return await fallbackRes.json();
-    } catch {
-      return null;
-    }
-  }
-  return null;
 }
 
 async function fetchEspnStandingsBySlug(

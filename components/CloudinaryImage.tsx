@@ -1,8 +1,8 @@
-import Colors from "@/constants/Colors";
+import { useAppTheme } from "@/context/ThemeContext";
 import { getCloudinaryUrl } from "@/utils/cloudinary";
 import { Image, ImageProps } from "expo-image";
-import React from "react";
-import { View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { StyleSheet, View } from "react-native";
 
 interface CloudinaryImageProps extends Omit<ImageProps, "source"> {
   publicId: string;
@@ -16,23 +16,47 @@ export default function CloudinaryImage({
   width,
   height,
   style,
-  placeholderColor = Colors.light.placeholder,
+  placeholderColor,
   ...props
 }: CloudinaryImageProps) {
-  const optimizedUrl = getCloudinaryUrl(publicId, width, height);
+  const { theme } = useAppTheme();
+  const [hasError, setHasError] = useState(false);
 
-  if (!optimizedUrl) {
-    return <View style={[style, { backgroundColor: placeholderColor }]} />;
+  useEffect(() => {
+    setHasError(false);
+  }, [publicId]);
+
+  const optimizedUrl = getCloudinaryUrl(publicId, width, height);
+  const bg = placeholderColor ?? theme.placeholder;
+
+  if (!optimizedUrl || hasError) {
+    return (
+      <View
+        style={[
+          styles.fallbackBox,
+          { backgroundColor: bg, borderColor: theme.border },
+          style,
+        ]}
+      />
+    );
   }
 
   return (
     <Image
       source={{ uri: optimizedUrl }}
       style={[style]}
-      transition={300}
+      transition={250}
       cachePolicy="memory-disk"
       contentFit="cover"
+      onError={() => setHasError(true)}
       {...props}
     />
   );
 }
+
+const styles = StyleSheet.create({
+  fallbackBox: {
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+});

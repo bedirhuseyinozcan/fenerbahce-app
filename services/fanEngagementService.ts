@@ -1,43 +1,14 @@
+import { resolveMatchStatus } from "@/services/fixtureService";
 import { MatchData, PredictionData } from "@/types";
+import { getJson, getString, setJson, setString } from "@/utils/storage";
 import { Linking } from "react-native";
-
-// Hafıza + Web localStorage hibrit sıfır maliyetli depolama (ek paket gerektirmez)
-const memoryStore = new Map<string, string>();
-
-function getItem(key: string): string | null {
-  try {
-    if (typeof window !== "undefined" && window.localStorage) {
-      return window.localStorage.getItem(key);
-    }
-  } catch {
-    // ignore
-  }
-  return memoryStore.get(key) ?? null;
-}
-
-function setItem(key: string, value: string): void {
-  memoryStore.set(key, value);
-  try {
-    if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.setItem(key, value);
-    }
-  } catch {
-    // ignore
-  }
-}
 
 const PREDICTIONS_KEY = "fb_fan_predictions_v1";
 const NTFY_TOPIC_KEY = "fb_ntfy_topic_v1";
 const DEFAULT_NTFY_TOPIC = "fenerbahce-canli-1907";
 
 export function getSavedPredictions(): Record<string, PredictionData> {
-  const raw = getItem(PREDICTIONS_KEY);
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return {};
-  }
+  return getJson<Record<string, PredictionData>>(PREDICTIONS_KEY) || {};
 }
 
 export function getPredictionForMatch(matchId: string): PredictionData | null {
@@ -58,7 +29,7 @@ export function savePredictionForMatch(
     createdAt: new Date().toISOString(),
   };
   all[matchId] = entry;
-  setItem(PREDICTIONS_KEY, JSON.stringify(all));
+  setJson(PREDICTIONS_KEY, all);
   return entry;
 }
 
@@ -79,7 +50,7 @@ export function calculatePredictionStats(matches: MatchData[]): {
     const match = matches.find((m) => m.id === pred.matchId);
     if (
       match &&
-      match.status === "finished" &&
+      resolveMatchStatus(match) === "finished" &&
       match.homeScore != null &&
       match.awayScore != null
     ) {
@@ -105,12 +76,12 @@ export function calculatePredictionStats(matches: MatchData[]): {
 }
 
 export function getNtfyTopic(): string {
-  return getItem(NTFY_TOPIC_KEY) || DEFAULT_NTFY_TOPIC;
+  return getString(NTFY_TOPIC_KEY) || DEFAULT_NTFY_TOPIC;
 }
 
 export function setNtfyTopic(topic: string): void {
   const cleaned = topic.trim().replace(/[^a-zA-Z0-9_-]/g, "");
-  setItem(NTFY_TOPIC_KEY, cleaned || DEFAULT_NTFY_TOPIC);
+  setString(NTFY_TOPIC_KEY, cleaned || DEFAULT_NTFY_TOPIC);
 }
 
 export async function sendTestNtfyNotification(

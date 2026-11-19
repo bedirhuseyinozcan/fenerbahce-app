@@ -1,21 +1,20 @@
 import MatchCard from "@/components/MatchCard";
-import Colors from "@/constants/Colors";
-import {
-  fallbackCuratedFixtures,
-  fetchFixtures,
-  getCachedFixturesSync,
-} from "@/services/fixtureService";
+import { LivePulseDot } from "@/components/ui/LivePulseDot";
+import { MatchCardSkeleton } from "@/components/ui/Skeleton";
+import { Radius } from "@/constants/theme";
+import { useAppTheme } from "@/context/ThemeContext";
+import { useFixturesQuery } from "@/hooks/useSportsQueries";
+import { resolveMatchStatus } from "@/services/fixtureService";
 import { MatchData } from "@/types";
+import { triggerSelectionHaptic } from "@/utils/haptics";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,52 +23,37 @@ const BRANCHES = ["Tümü", "Futbol", "Basketbol", "Voleybol"];
 
 export default function FiksturScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? "light";
-  const theme = Colors[colorScheme];
+  const { theme, brand } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   const [selectedBranch, setSelectedBranch] = useState("Tümü");
   const [statusTab, setStatusTab] = useState<"upcoming" | "past">("upcoming");
-  const [matches, setMatches] = useState<MatchData[]>(
-    () => getCachedFixturesSync() || [],
-  );
-  const [loading, setLoading] = useState(() => !getCachedFixturesSync());
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadData = useCallback(
-    async (force: boolean = false, silent: boolean = false) => {
-      if (!silent && !getCachedFixturesSync()) setLoading(true);
-      const data = await fetchFixtures(force);
-      setMatches(data);
-      setLoading(false);
-      setRefreshing(false);
-    },
-    [],
-  );
+  const { data: matches = [], isLoading, refetch } = useFixturesQuery();
+  const loading = isLoading && matches.length === 0;
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // Canlı maç varken 20 sn, normalde 60 sn otomatik güncelleme (K2 düzeltmesi)
-  useEffect(() => {
-    const hasLive = matches.some((m) => m.status === "live");
-    const timer = setInterval(
-      () => {
-        loadData(true, true);
-      },
-      hasLive ? 20000 : 60000,
-    );
-    return () => clearInterval(timer);
-  }, [loadData, matches]);
-
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    loadData(true, true);
-  }, [loadData]);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetch]);
 
-  const isLiveOrUpcoming = (m: MatchData) =>
-    m.status === "live" || (m.homeScore === null && m.awayScore === null);
+  const isLiveOrUpcoming = (m: MatchData) => {
+    const st = resolveMatchStatus(m);
+    return st === "live" || st === "upcoming";
+  };
+
+  const hasLiveInSelectedBranch = useMemo(() => {
+    return matches.some(
+      (m) =>
+        (selectedBranch === "Tümü" || m.branch === selectedBranch) &&
+        resolveMatchStatus(m) === "live",
+    );
+  }, [matches, selectedBranch]);
 
   const upcomingCount = useMemo(() => {
     return matches.filter(
@@ -100,46 +84,58 @@ export default function FiksturScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* 1. GELECEK & CANLI / BİTEN MAÇLAR SEGMENTLİ SEKMESİ */}
       <View style={styles.segmentContainer}>
         <View
           style={[
             styles.segmentWrapper,
-            { backgroundColor: theme.cardBackground },
+            {
+              backgroundColor: theme.cardBackground,
+              borderColor: theme.border,
+            },
           ]}
         >
           <TouchableOpacity
             style={[
               styles.segmentBtn,
               statusTab === "upcoming" && {
-                backgroundColor: Colors.brand.navy,
+                backgroundColor: brand.navy,
               },
             ]}
-            onPress={() => setStatusTab("upcoming")}
+            onPress={() => {
+              triggerSelectionHaptic();
+              setStatusTab("upcoming");
+            }}
             activeOpacity={0.8}
           >
-            <Text
-              style={[
-                styles.segmentText,
-                {
-                  color:
-                    statusTab === "upcoming"
-                      ? Colors.brand.yellow
-                      : theme.secondaryText,
-                },
-                statusTab === "upcoming" && { fontWeight: "bold" },
-              ]}
-            >
-              ⏳ Canlı & Gelecek ({upcomingCount})
-            </Text>
+            <View style={styles.segmentLabelRow}>
+              {hasLiveInSelectedBranch && <LivePulseDot size={6} />}
+              <Text
+                style={[
+                  styles.segmentText,
+                  {
+                    color:
+                      statusTab === "upcoming"
+                        ? brand.yellow
+                        : theme.secondaryText,
+                  },
+                  statusTab === "upcoming" && { fontWeight: "bold" },
+                ]}
+              >
+                {hasLiveInSelectedBranch ? "Canlı & Gelecek" : "⏳ Gelecek"} (
+                {upcomingCount})
+              </Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[
               styles.segmentBtn,
-              statusTab === "past" && { backgroundColor: Colors.brand.navy },
+              statusTab === "past" && { backgroundColor: brand.navy },
             ]}
-            onPress={() => setStatusTab("past")}
+            onPress={() => {
+              triggerSelectionHaptic();
+              setStatusTab("past");
+            }}
             activeOpacity={0.8}
           >
             <Text
@@ -147,9 +143,7 @@ export default function FiksturScreen() {
                 styles.segmentText,
                 {
                   color:
-                    statusTab === "past"
-                      ? Colors.brand.yellow
-                      : theme.secondaryText,
+                    statusTab === "past" ? brand.yellow : theme.secondaryText,
                 },
                 statusTab === "past" && { fontWeight: "bold" },
               ]}
@@ -160,7 +154,6 @@ export default function FiksturScreen() {
         </View>
       </View>
 
-      {/* 2. BRANŞ FİLTRE HAPLARI */}
       <View style={styles.filterContainer}>
         <FlatList
           horizontal
@@ -175,19 +168,20 @@ export default function FiksturScreen() {
                   styles.filterButton,
                   {
                     backgroundColor: isActive
-                      ? Colors.brand.yellow
+                      ? brand.yellow
                       : theme.cardBackground,
-                    borderColor: isActive
-                      ? Colors.brand.yellow
-                      : "rgba(0,0,0,0.06)",
+                    borderColor: isActive ? brand.yellow : theme.border,
                   },
                 ]}
-                onPress={() => setSelectedBranch(item)}
+                onPress={() => {
+                  triggerSelectionHaptic();
+                  setSelectedBranch(item);
+                }}
               >
                 <Text
                   style={[
                     styles.filterText,
-                    { color: isActive ? Colors.brand.navy : theme.text },
+                    { color: isActive ? brand.navy : theme.text },
                     isActive && { fontWeight: "bold" },
                   ]}
                 >
@@ -207,13 +201,11 @@ export default function FiksturScreen() {
         />
       </View>
 
-      {/* 3. MAÇ LİSTESİ */}
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.brand.navy} />
-          <Text style={{ marginTop: 12, color: theme.secondaryText }}>
-            Maç Takvimi Yükleniyor...
-          </Text>
+        <View style={styles.skeletonList}>
+          <MatchCardSkeleton fullWidth />
+          <MatchCardSkeleton fullWidth />
+          <MatchCardSkeleton fullWidth />
         </View>
       ) : (
         <FlatList
@@ -228,8 +220,8 @@ export default function FiksturScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={Colors.brand.navy}
-              colors={[Colors.brand.navy, Colors.brand.yellow]}
+              tintColor={theme.accent}
+              colors={[brand.navy, brand.yellow]}
             />
           }
           renderItem={({ item }) => (
@@ -282,20 +274,21 @@ const styles = StyleSheet.create({
   },
   segmentWrapper: {
     flexDirection: "row",
-    borderRadius: 14,
+    borderRadius: Radius.md,
+    borderWidth: 1,
     padding: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
   segmentBtn: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: Radius.sm,
     alignItems: "center",
     justifyContent: "center",
+  },
+  segmentLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   segmentText: {
     fontSize: 13,
@@ -309,18 +302,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     marginRight: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 2,
-    elevation: 1,
   },
   filterText: {
     fontSize: 13,
   },
-  loadingContainer: {
-    padding: 48,
-    alignItems: "center",
+  skeletonList: {
+    paddingHorizontal: 16,
+    gap: 4,
   },
   listContent: {
     paddingTop: 4,
@@ -330,7 +318,7 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingHorizontal: 16,
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   emptyContainer: {
     padding: 48,

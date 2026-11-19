@@ -1,20 +1,18 @@
 import CloudinaryImage from "@/components/CloudinaryImage";
-import Colors from "@/constants/Colors";
-import {
-  fetchStandingsByLeague,
-  StandingsLeagueKey,
-} from "@/services/standingsService";
-import { TeamStanding } from "@/types";
+import { StandingsSkeleton } from "@/components/ui/Skeleton";
+import { Radius } from "@/constants/theme";
+import { useAppTheme } from "@/context/ThemeContext";
+import { useStandingsQuery } from "@/hooks/useSportsQueries";
+import { StandingsLeagueKey } from "@/services/standingsService";
+import { triggerSelectionHaptic } from "@/utils/haptics";
 import { Stack } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 
@@ -25,42 +23,47 @@ const LEAGUE_TABS: { key: StandingsLeagueKey; label: string; emoji: string }[] =
     { key: "euroleague", label: "EuroLeague", emoji: "🏀" },
   ];
 
+function getZoneColor(
+  league: StandingsLeagueKey,
+  rank: number,
+  totalTeams: number,
+): string | null {
+  if (league === "superlig") {
+    if (rank <= 2) return "#10B981";
+    if (rank <= 4) return "#3B82F6";
+    if (totalTeams >= 16 && rank > totalTeams - 3) return "#EF4444";
+  } else if (league === "champions") {
+    if (rank <= 8) return "#10B981";
+    if (rank <= 24) return "#F59E0B";
+  } else if (league === "euroleague") {
+    if (rank <= 6) return "#10B981";
+    if (rank <= 10) return "#F59E0B";
+  }
+  return null;
+}
+
 export default function PuanDurumuScreen() {
-  const colorScheme = useColorScheme() ?? "light";
-  const theme = Colors[colorScheme];
+  const { theme, brand } = useAppTheme();
   const [selectedLeague, setSelectedLeague] =
     useState<StandingsLeagueKey>("superlig");
-  const [standings, setStandings] = useState<TeamStanding[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadData = useCallback(
-    async (force: boolean = false) => {
-      const data = await fetchStandingsByLeague(selectedLeague, force);
-      setStandings(data);
-      setLoading(false);
-      setRefreshing(false);
-    },
-    [selectedLeague],
-  );
+  const {
+    data: standings = [],
+    isLoading,
+    refetch,
+  } = useStandingsQuery(selectedLeague);
 
-  useEffect(() => {
-    setLoading(true);
-    loadData();
-  }, [loadData]);
+  const loading = isLoading && standings.length === 0;
 
-  // 60 saniyede bir otomatik canlı puan durumu yenileme
-  useEffect(() => {
-    const timer = setInterval(() => {
-      loadData(true);
-    }, 60 * 1000);
-    return () => clearInterval(timer);
-  }, [loadData]);
-
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    loadData(true);
-  }, [loadData]);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetch]);
 
   const isBasketball = selectedLeague === "euroleague";
 
@@ -69,13 +72,12 @@ export default function PuanDurumuScreen() {
       <Stack.Screen
         options={{
           title: "Canlı Puan Durumu",
-          headerStyle: { backgroundColor: Colors.brand.navy },
-          headerTintColor: Colors.brand.yellow,
+          headerStyle: { backgroundColor: brand.navy },
+          headerTintColor: brand.yellow,
           headerBackTitle: "Geri",
         }}
       />
 
-      {/* Lig Seçici Sekmeler */}
       <View style={styles.leagueTabsRow}>
         {LEAGUE_TABS.map((t) => {
           const isActive = selectedLeague === t.key;
@@ -85,19 +87,20 @@ export default function PuanDurumuScreen() {
               style={[
                 styles.leagueTab,
                 {
-                  backgroundColor: isActive
-                    ? Colors.brand.navy
-                    : theme.cardBackground,
-                  borderColor: isActive ? Colors.brand.yellow : theme.placeholder,
+                  backgroundColor: isActive ? brand.navy : theme.cardBackground,
+                  borderColor: isActive ? brand.yellow : theme.border,
                 },
               ]}
-              onPress={() => setSelectedLeague(t.key)}
+              onPress={() => {
+                triggerSelectionHaptic();
+                setSelectedLeague(t.key);
+              }}
               activeOpacity={0.8}
             >
               <Text
                 style={[
                   styles.leagueTabText,
-                  { color: isActive ? Colors.brand.yellow : theme.text },
+                  { color: isActive ? brand.yellow : theme.text },
                 ]}
               >
                 {t.emoji} {t.label}
@@ -108,54 +111,84 @@ export default function PuanDurumuScreen() {
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={Colors.brand.navy} />
-          <Text
-            style={{
-              marginTop: 10,
-              fontSize: 13,
-              color: theme.secondaryText,
-            }}
-          >
-            Puan tablosu güncelleniyor...
-          </Text>
-        </View>
+        <StandingsSkeleton rows={10} />
       ) : (
         <View
           style={[
             styles.tableContainer,
-            { backgroundColor: theme.cardBackground },
+            {
+              backgroundColor: theme.cardBackground,
+              borderColor: theme.border,
+            },
           ]}
         >
-          <View style={styles.headerRow}>
-            <Text style={[styles.headerText, { flex: 0.5 }]}>#</Text>
-            <Text style={[styles.headerText, { flex: 3 }]}>TAKIM</Text>
+          <View
+            style={[
+              styles.headerRow,
+              {
+                borderBottomColor: theme.divider,
+                backgroundColor: theme.surfaceSubtle,
+              },
+            ]}
+          >
             <Text
-              style={[styles.headerText, { flex: 0.8, textAlign: "center" }]}
+              style={[styles.headerText, { flex: 0.6, color: theme.secondaryText }]}
+            >
+              #
+            </Text>
+            <Text
+              style={[styles.headerText, { flex: 3, color: theme.secondaryText }]}
+            >
+              TAKIM
+            </Text>
+            <Text
+              style={[
+                styles.headerText,
+                { flex: 0.8, textAlign: "center", color: theme.secondaryText },
+              ]}
             >
               O
             </Text>
             <Text
-              style={[styles.headerText, { flex: 0.8, textAlign: "center" }]}
+              style={[
+                styles.headerText,
+                { flex: 0.8, textAlign: "center", color: theme.secondaryText },
+              ]}
             >
               G
             </Text>
             {!isBasketball && (
               <Text
-                style={[styles.headerText, { flex: 0.8, textAlign: "center" }]}
+                style={[
+                  styles.headerText,
+                  { flex: 0.8, textAlign: "center", color: theme.secondaryText },
+                ]}
               >
                 B
               </Text>
             )}
             <Text
-              style={[styles.headerText, { flex: 0.8, textAlign: "center" }]}
+              style={[
+                styles.headerText,
+                { flex: 0.8, textAlign: "center", color: theme.secondaryText },
+              ]}
             >
               M
             </Text>
-            <Text style={[styles.headerText, { flex: 1, textAlign: "center" }]}>
+            <Text
+              style={[
+                styles.headerText,
+                { flex: 1, textAlign: "center", color: theme.secondaryText },
+              ]}
+            >
               AV
             </Text>
-            <Text style={[styles.headerText, { flex: 1, textAlign: "center" }]}>
+            <Text
+              style={[
+                styles.headerText,
+                { flex: 1, textAlign: "center", color: theme.secondaryText },
+              ]}
+            >
               {isBasketball ? "G%" : "P"}
             </Text>
           </View>
@@ -168,8 +201,8 @@ export default function PuanDurumuScreen() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                tintColor={Colors.brand.navy}
-                colors={[Colors.brand.navy, Colors.brand.yellow]}
+                tintColor={theme.accent}
+                colors={[brand.navy, brand.yellow]}
               />
             }
             ListEmptyComponent={
@@ -185,34 +218,41 @@ export default function PuanDurumuScreen() {
                 item.played > 0
                   ? `%${Math.round((item.win / item.played) * 100)}`
                   : "%0";
+              const zoneColor = getZoneColor(
+                selectedLeague,
+                item.rank,
+                standings.length,
+              );
+
               return (
                 <View
                   style={[
                     styles.row,
-                    isFB && {
-                      backgroundColor: "rgba(255, 237, 0, 0.18)",
-                    },
+                    { borderBottomColor: theme.divider },
+                    isFB && { backgroundColor: theme.highlightRow },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.cellText,
-                      {
-                        flex: 0.5,
-                        fontWeight: "bold",
-                        color: isFB ? Colors.brand.navy : theme.text,
-                      },
-                    ]}
-                  >
-                    {item.rank}
-                  </Text>
-                  <View
-                    style={{
-                      flex: 3,
-                      flexDirection: "row",
-                      alignItems: "center",
-                    }}
-                  >
+                  <View style={styles.rankCell}>
+                    <View
+                      style={[
+                        styles.zoneIndicator,
+                        { backgroundColor: zoneColor || "transparent" },
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.cellText,
+                        styles.tabularNumbers,
+                        {
+                          fontWeight: "bold",
+                          color: isFB ? theme.accent : theme.text,
+                        },
+                      ]}
+                    >
+                      {item.rank}
+                    </Text>
+                  </View>
+                  <View style={styles.teamCell}>
                     <CloudinaryImage
                       publicId={item.badge}
                       style={{ width: 22, height: 22, marginRight: 8 }}
@@ -234,6 +274,7 @@ export default function PuanDurumuScreen() {
                   <Text
                     style={[
                       styles.cellText,
+                      styles.tabularNumbers,
                       {
                         flex: 0.8,
                         textAlign: "center",
@@ -246,6 +287,7 @@ export default function PuanDurumuScreen() {
                   <Text
                     style={[
                       styles.cellText,
+                      styles.tabularNumbers,
                       {
                         flex: 0.8,
                         textAlign: "center",
@@ -259,6 +301,7 @@ export default function PuanDurumuScreen() {
                     <Text
                       style={[
                         styles.cellText,
+                        styles.tabularNumbers,
                         {
                           flex: 0.8,
                           textAlign: "center",
@@ -272,6 +315,7 @@ export default function PuanDurumuScreen() {
                   <Text
                     style={[
                       styles.cellText,
+                      styles.tabularNumbers,
                       {
                         flex: 0.8,
                         textAlign: "center",
@@ -284,6 +328,7 @@ export default function PuanDurumuScreen() {
                   <Text
                     style={[
                       styles.cellText,
+                      styles.tabularNumbers,
                       {
                         flex: 1,
                         textAlign: "center",
@@ -298,6 +343,7 @@ export default function PuanDurumuScreen() {
                   <Text
                     style={[
                       styles.cellText,
+                      styles.tabularNumbers,
                       {
                         flex: 1,
                         textAlign: "center",
@@ -323,6 +369,9 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  tabularNumbers: {
+    fontVariant: ["tabular-nums"],
+  },
   leagueTabsRow: {
     flexDirection: "row",
     gap: 8,
@@ -343,10 +392,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   tableContainer: {
-    borderRadius: 12,
+    borderRadius: Radius.md,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.05)",
     flex: 1,
   },
   headerRow: {
@@ -354,11 +402,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)",
-    backgroundColor: "rgba(0,0,0,0.02)",
   },
   headerText: {
-    color: Colors.light.secondaryText,
     fontSize: 11,
     fontWeight: "bold",
   },
@@ -368,7 +413,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.02)",
+  },
+  rankCell: {
+    flex: 0.6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  zoneIndicator: {
+    width: 3,
+    height: 16,
+    borderRadius: 2,
+  },
+  teamCell: {
+    flex: 3,
+    flexDirection: "row",
+    alignItems: "center",
   },
   cellText: {
     fontSize: 12,

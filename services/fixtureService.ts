@@ -1,5 +1,6 @@
 import { MatchData, MatchStatus } from "@/types";
 import { safeFetch } from "@/utils/safeFetch";
+import { getJson, setJson } from "@/utils/storage";
 
 const FIXTURES_CACHE_TTL_MS = 60 * 1000;
 const PERSISTENT_FIXTURES_KEY = "fb_persisted_live_fixtures_v6";
@@ -8,33 +9,78 @@ let lastFetchTimestamp = 0;
 let inFlightFixturesPromise: Promise<MatchData[]> | null = null;
 const lastGoodByBranch = new Map<string, MatchData[]>();
 
-export const fallbackCuratedFixtures: MatchData[] = [];
-
 function loadPersistedFixtures(): MatchData[] | null {
-  try {
-    if (typeof window !== "undefined" && window.localStorage) {
-      const raw = window.localStorage.getItem(PERSISTENT_FIXTURES_KEY);
-      if (raw) {
-        const parsed: MatchData[] = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    }
-  } catch {}
-  return null;
+  const parsed = getJson<MatchData[]>(PERSISTENT_FIXTURES_KEY);
+  return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
 }
 
 function savePersistedFixtures(list: MatchData[]): void {
+  if (!Array.isArray(list) || list.length === 0) return;
+  setJson(PERSISTENT_FIXTURES_KEY, list);
+}
+
+export function isSameIstanbulCalendarDay(
+  rawDate?: string,
+  now: Date = new Date(),
+): boolean {
+  if (!rawDate) return false;
+  const target = new Date(rawDate);
+  if (isNaN(target.getTime())) return false;
+
   try {
-    if (!Array.isArray(list) || list.length === 0) return;
-    if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.setItem(
-        PERSISTENT_FIXTURES_KEY,
-        JSON.stringify(list),
-      );
-    }
-  } catch {}
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Istanbul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    return formatter.format(target) === formatter.format(now);
+  } catch {
+    return (
+      target.getFullYear() === now.getFullYear() &&
+      target.getMonth() === now.getMonth() &&
+      target.getDate() === now.getDate()
+    );
+  }
+}
+
+export function isHomeIstanbulMatch(
+  match: MatchData | null | undefined,
+): boolean {
+  if (!match) return false;
+  const home = (match.homeTeam || "").toLowerCase();
+  const stadium = (match.stadium || "").toLowerCase();
+  if (home.includes("fenerbah")) return true;
+  return (
+    stadium.includes("saracoğlu") ||
+    stadium.includes("saracoglu") ||
+    stadium.includes("ülker") ||
+    stadium.includes("ulker") ||
+    stadium.includes("burhan felek") ||
+    stadium.includes("kadıköy") ||
+    stadium.includes("kadikoy") ||
+    stadium.includes("ataşehir") ||
+    stadium.includes("atasehir")
+  );
+}
+
+export function resolveMatchStatus(
+  match: Pick<MatchData, "status" | "homeScore" | "awayScore">,
+): MatchStatus {
+  if (match.status === "live") return "live";
+  if (match.status === "finished") return "finished";
+
+  const hasHome =
+    match.homeScore !== null &&
+    match.homeScore !== undefined &&
+    match.homeScore !== "";
+  const hasAway =
+    match.awayScore !== null &&
+    match.awayScore !== undefined &&
+    match.awayScore !== "";
+
+  if (hasHome && hasAway) return "finished";
+  return "upcoming";
 }
 
 export function getCachedFixturesSync(): MatchData[] | null {
@@ -241,15 +287,6 @@ export const fetchFixtures = async (
             let awayLogoUrl = isFBAway
               ? "fener.png"
               : awayComp.team?.logo || awayComp.team?.logos?.[0]?.href;
-
-            if (!isFBHome && homeName.toLowerCase().includes("kocaeli")) {
-              homeLogoUrl =
-                "https://res.cloudinary.com/z1hvtpqh/image/upload/v1789046202/kocaeli.png";
-            }
-            if (!isFBAway && awayName.toLowerCase().includes("kocaeli")) {
-              awayLogoUrl =
-                "https://res.cloudinary.com/z1hvtpqh/image/upload/v1789046202/kocaeli.png";
-            }
 
             const matchId = String(event.id);
             matchMap.set(matchId, {

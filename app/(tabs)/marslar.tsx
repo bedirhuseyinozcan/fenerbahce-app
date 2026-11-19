@@ -1,5 +1,7 @@
-import Colors from "@/constants/Colors";
+import { Radius } from "@/constants/theme";
+import { useAppTheme } from "@/context/ThemeContext";
 import { marslarList, Song } from "@/data/marslarData";
+import { triggerLightHaptic, triggerSelectionHaptic } from "@/utils/haptics";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import {
@@ -8,7 +10,8 @@ import {
   useAudioPlayerStatus,
 } from "expo-audio";
 import { Image } from "expo-image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -18,7 +21,6 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -31,8 +33,7 @@ function formatTime(seconds: number = 0): string {
 }
 
 export default function MarslarScreen() {
-  const colorScheme = useColorScheme() ?? "light";
-  const theme = Colors[colorScheme];
+  const { theme, brand } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   const [selectedCategory, setSelectedCategory] = useState<string>("Tümü");
@@ -41,7 +42,11 @@ export default function MarslarScreen() {
   const [activeLyricsSong, setActiveLyricsSong] = useState<Song | null>(null);
   const [progressBarWidth, setProgressBarWidth] = useState<number>(0);
 
-  const categories = ["Tümü", "Marş", "Beste", "Tezahürat"];
+  const categories = useMemo(
+    () => ["Tümü", ...Array.from(new Set(marslarList.map((s) => s.category)))],
+    [],
+  );
+
   useEffect(() => {
     setAudioModeAsync({
       playsInSilentMode: true,
@@ -79,6 +84,43 @@ export default function MarslarScreen() {
       ? Math.min(100, Math.max(0, (currentTime / duration) * 100))
       : 0;
 
+  const currentSongIdRef = useRef(currentSongId);
+  currentSongIdRef.current = currentSongId;
+  const filteredSongsRef = useRef(filteredSongs);
+  filteredSongsRef.current = filteredSongs;
+
+  const playSongById = useCallback(
+    (song: Song) => {
+      setCurrentSongId(song.id);
+      player.replace(song.audioUrl);
+      player.play();
+    },
+    [player],
+  );
+
+  const handleNext = useCallback(() => {
+    const list = filteredSongsRef.current;
+    const currentIndex = list.findIndex((s) => s.id === currentSongIdRef.current);
+    const nextIdx = currentIndex === -1 ? 0 : (currentIndex + 1) % list.length;
+    const nextSong = list[nextIdx];
+    if (nextSong) {
+      triggerLightHaptic();
+      playSongById(nextSong);
+    }
+  }, [playSongById]);
+
+  const handlePrev = useCallback(() => {
+    const list = filteredSongsRef.current;
+    const currentIndex = list.findIndex((s) => s.id === currentSongIdRef.current);
+    const prevIdx =
+      currentIndex === -1 ? 0 : (currentIndex - 1 + list.length) % list.length;
+    const prevSong = list[prevIdx];
+    if (prevSong) {
+      triggerLightHaptic();
+      playSongById(prevSong);
+    }
+  }, [playSongById]);
+
   const didFinishRef = useRef(false);
   useEffect(() => {
     if (status.didJustFinish && !didFinishRef.current) {
@@ -87,9 +129,10 @@ export default function MarslarScreen() {
     } else if (!status.didJustFinish) {
       didFinishRef.current = false;
     }
-  }, [status.didJustFinish]);
+  }, [status.didJustFinish, handleNext]);
 
   const togglePlay = () => {
+    triggerLightHaptic();
     if (isPlaying) {
       player.pause();
     } else {
@@ -97,33 +140,8 @@ export default function MarslarScreen() {
     }
   };
 
-  const handleNext = () => {
-    const currentIndex = filteredSongs.findIndex((s) => s.id === currentSongId);
-    const nextIdx =
-      currentIndex === -1 ? 0 : (currentIndex + 1) % filteredSongs.length;
-    const nextSong = filteredSongs[nextIdx];
-    if (nextSong) {
-      setCurrentSongId(nextSong.id);
-      player.replace(nextSong.audioUrl);
-      player.play();
-    }
-  };
-
-  const handlePrev = () => {
-    const currentIndex = filteredSongs.findIndex((s) => s.id === currentSongId);
-    const prevIdx =
-      currentIndex === -1
-        ? 0
-        : (currentIndex - 1 + filteredSongs.length) % filteredSongs.length;
-    const prevSong = filteredSongs[prevIdx];
-    if (prevSong) {
-      setCurrentSongId(prevSong.id);
-      player.replace(prevSong.audioUrl);
-      player.play();
-    }
-  };
-
   const seekForward10 = () => {
+    triggerLightHaptic();
     const dur =
       Number.isFinite(status.duration) && status.duration > 0
         ? status.duration
@@ -135,6 +153,7 @@ export default function MarslarScreen() {
   };
 
   const seekBackward10 = () => {
+    triggerLightHaptic();
     const target = Math.max(0, currentTime - 10);
     if (Number.isFinite(target)) {
       player.seekTo(target);
@@ -177,9 +196,8 @@ export default function MarslarScreen() {
     if (currentSongId === song.id) {
       togglePlay();
     } else {
-      setCurrentSongId(song.id);
-      player.replace(song.audioUrl);
-      player.play();
+      triggerLightHaptic();
+      playSongById(song);
     }
   };
 
@@ -190,19 +208,22 @@ export default function MarslarScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View
-        style={[styles.heroPlayerCard, { backgroundColor: Colors.brand.navy }]}
+      <LinearGradient
+        colors={[brand.navyLight, brand.navyDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.heroPlayerCard}
       >
         <View style={styles.heroRow}>
           <Image
             source={{ uri: currentTrack.coverImage }}
-            style={styles.albumArt}
+            style={[styles.albumArt, { borderColor: brand.yellow }]}
             contentFit="cover"
           />
 
           <View style={styles.heroTrackInfo}>
             <View style={styles.categoryBadge}>
-              <Text style={styles.categoryBadgeText}>
+              <Text style={[styles.categoryBadgeText, { color: brand.yellow }]}>
                 {currentTrack.category.toUpperCase()}
               </Text>
             </View>
@@ -221,9 +242,11 @@ export default function MarslarScreen() {
               <Ionicons
                 name="document-text-outline"
                 size={14}
-                color={Colors.brand.yellow}
+                color={brand.yellow}
               />
-              <Text style={styles.lyricsButtonText}>Sözleri Oku</Text>
+              <Text style={[styles.lyricsButtonText, { color: brand.yellow }]}>
+                Sözleri Oku
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -245,7 +268,10 @@ export default function MarslarScreen() {
               <View
                 style={[
                   styles.progressBarFill,
-                  { width: `${progressPercent}%` },
+                  {
+                    width: `${progressPercent}%`,
+                    backgroundColor: brand.yellow,
+                  },
                 ]}
               />
               <View
@@ -255,14 +281,20 @@ export default function MarslarScreen() {
           </TouchableOpacity>
 
           <View style={styles.timeRow}>
-            <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+            <Text style={[styles.timeText, styles.tabularNumbers]}>
+              {formatTime(currentTime)}
+            </Text>
             {isBuffering ? (
               <View style={styles.bufferingContainer}>
-                <ActivityIndicator size="small" color={Colors.brand.yellow} />
-                <Text style={styles.bufferingText}>Yükleniyor...</Text>
+                <ActivityIndicator size="small" color={brand.yellow} />
+                <Text style={[styles.bufferingText, { color: brand.yellow }]}>
+                  Yükleniyor...
+                </Text>
               </View>
             ) : null}
-            <Text style={styles.timeText}>{formatTime(duration)}</Text>
+            <Text style={[styles.timeText, styles.tabularNumbers]}>
+              {formatTime(duration)}
+            </Text>
           </View>
         </View>
 
@@ -285,16 +317,19 @@ export default function MarslarScreen() {
 
           <TouchableOpacity
             onPress={togglePlay}
-            style={styles.playButton}
+            style={[
+              styles.playButton,
+              { backgroundColor: brand.yellow, shadowColor: brand.yellow },
+            ]}
             activeOpacity={0.8}
           >
             {isBuffering ? (
-              <ActivityIndicator size="small" color={Colors.brand.navy} />
+              <ActivityIndicator size="small" color={brand.navy} />
             ) : (
               <Ionicons
                 name={isPlaying ? "pause" : "play"}
                 size={30}
-                color={Colors.brand.navy}
+                color={brand.navy}
                 style={{ marginLeft: isPlaying ? 0 : 2 }}
               />
             )}
@@ -316,7 +351,7 @@ export default function MarslarScreen() {
             <Ionicons name="play-skip-forward" size={24} color="#FFF" />
           </TouchableOpacity>
         </View>
-      </View>
+      </LinearGradient>
 
       <View style={styles.categoryContainer}>
         <ScrollView
@@ -333,16 +368,20 @@ export default function MarslarScreen() {
                   styles.categoryPill,
                   {
                     backgroundColor: isActive
-                      ? Colors.brand.yellow
+                      ? brand.yellow
                       : theme.cardBackground,
+                    borderColor: isActive ? brand.yellow : theme.border,
                   },
                 ]}
-                onPress={() => setSelectedCategory(cat)}
+                onPress={() => {
+                  triggerSelectionHaptic();
+                  setSelectedCategory(cat);
+                }}
               >
                 <Text
                   style={[
                     styles.categoryPillText,
-                    { color: isActive ? Colors.brand.navy : theme.text },
+                    { color: isActive ? brand.navy : theme.text },
                     isActive && { fontWeight: "bold" },
                   ]}
                 >
@@ -368,26 +407,29 @@ export default function MarslarScreen() {
             <TouchableOpacity
               style={[
                 styles.trackCard,
-                { backgroundColor: theme.cardBackground },
-                isCurrent && styles.trackCardActive,
+                {
+                  backgroundColor: theme.cardBackground,
+                  borderColor: isCurrent ? brand.yellow : theme.border,
+                  borderWidth: isCurrent ? 1.5 : 1,
+                },
               ]}
               onPress={() => handleSelectTrack(item)}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
             >
               <View
                 style={[
                   styles.indexBadge,
-                  isCurrent && { backgroundColor: Colors.brand.yellow },
+                  {
+                    backgroundColor: isCurrent
+                      ? brand.yellow
+                      : theme.surfaceSubtle,
+                  },
                 ]}
               >
                 {isCurrent && isPlaying ? (
-                  <Ionicons
-                    name="volume-high"
-                    size={18}
-                    color={Colors.brand.navy}
-                  />
+                  <Ionicons name="volume-high" size={18} color={brand.navy} />
                 ) : isCurrent ? (
-                  <Ionicons name="pause" size={16} color={Colors.brand.navy} />
+                  <Ionicons name="pause" size={16} color={brand.navy} />
                 ) : (
                   <Text
                     style={[styles.indexText, { color: theme.secondaryText }]}
@@ -401,7 +443,7 @@ export default function MarslarScreen() {
                 <Text
                   style={[
                     styles.trackTitle,
-                    { color: isCurrent ? Colors.brand.navy : theme.text },
+                    { color: isCurrent ? theme.accent : theme.text },
                     isCurrent && { fontWeight: "bold" },
                   ]}
                   numberOfLines={1}
@@ -429,7 +471,11 @@ export default function MarslarScreen() {
                   />
                 </TouchableOpacity>
                 <Text
-                  style={[styles.durationText, { color: theme.secondaryText }]}
+                  style={[
+                    styles.durationText,
+                    styles.tabularNumbers,
+                    { color: theme.secondaryText },
+                  ]}
                 >
                   {item.duration}
                 </Text>
@@ -454,7 +500,12 @@ export default function MarslarScreen() {
           >
             {activeLyricsSong && (
               <>
-                <View style={styles.modalHeader}>
+                <View
+                  style={[
+                    styles.modalHeader,
+                    { borderBottomColor: theme.divider },
+                  ]}
+                >
                   <View style={{ flex: 1 }}>
                     <Text
                       style={[styles.modalTitle, { color: theme.text }]}
@@ -495,7 +546,10 @@ export default function MarslarScreen() {
                         style={[
                           styles.lyricLine,
                           { color: line ? theme.text : "transparent" },
-                          isFBHighlight && styles.lyricHighlight,
+                          isFBHighlight && {
+                            fontWeight: "bold",
+                            color: theme.accent,
+                          },
                         ]}
                       >
                         {line || " "}
@@ -517,9 +571,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  tabularNumbers: {
+    fontVariant: ["tabular-nums"],
+  },
   heroPlayerCard: {
     margin: 16,
-    borderRadius: 20,
+    borderRadius: Radius.xl,
     padding: 18,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
@@ -536,7 +593,6 @@ const styles = StyleSheet.create({
     height: 72,
     borderRadius: 14,
     borderWidth: 2,
-    borderColor: Colors.brand.yellow,
   },
   heroTrackInfo: {
     flex: 1,
@@ -551,7 +607,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   categoryBadgeText: {
-    color: Colors.brand.yellow,
     fontSize: 10,
     fontWeight: "bold",
     letterSpacing: 0.5,
@@ -573,7 +628,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   lyricsButtonText: {
-    color: Colors.brand.yellow,
     fontSize: 11,
     fontWeight: "600",
   },
@@ -592,7 +646,6 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: "100%",
-    backgroundColor: Colors.brand.yellow,
     borderRadius: 3,
   },
   progressThumb: {
@@ -625,7 +678,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   bufferingText: {
-    color: Colors.brand.yellow,
     fontSize: 10,
     fontWeight: "500",
   },
@@ -640,10 +692,8 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: Colors.brand.yellow,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: Colors.brand.yellow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.45,
     shadowRadius: 8,
@@ -671,7 +721,6 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.06)",
   },
   categoryPillText: {
     fontSize: 13,
@@ -686,23 +735,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 12,
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.04)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  trackCardActive: {
-    borderColor: Colors.brand.yellow,
-    borderWidth: 1.5,
   },
   indexBadge: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(0,0,0,0.04)",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -752,7 +789,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.08)",
   },
   modalTitle: {
     fontSize: 18,
@@ -773,9 +809,5 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     textAlign: "center",
     marginVertical: 2,
-  },
-  lyricHighlight: {
-    fontWeight: "bold",
-    color: Colors.brand.yellow,
   },
 });

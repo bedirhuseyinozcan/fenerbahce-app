@@ -1,19 +1,17 @@
 import CloudinaryImage from "@/components/CloudinaryImage";
-import Colors from "@/constants/Colors";
-import {
-  fallbackCuratedFixtures,
-  fetchFixtures,
-  getCachedFixturesSync,
-} from "@/services/fixtureService";
-import { MatchData } from "@/types";
+import { Radius } from "@/constants/theme";
+import { useAppTheme } from "@/context/ThemeContext";
+import { useFixturesQuery } from "@/hooks/useSportsQueries";
+import { resolveMatchStatus } from "@/services/fixtureService";
+import { triggerSelectionHaptic } from "@/utils/haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 
@@ -78,29 +76,22 @@ const RIVAL_RECORDS: RivalRecord[] = [
 
 export default function DerbiMerkeziScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? "light";
-  const theme = Colors[colorScheme];
+  const { theme, brand } = useAppTheme();
 
   const [selectedRival, setSelectedRival] = useState<"gs" | "bjk" | "ts">("gs");
-  const [fixtures, setFixtures] = useState<MatchData[]>(
-    () => getCachedFixturesSync() || fallbackCuratedFixtures,
-  );
-
-  useEffect(() => {
-    fetchFixtures().then(setFixtures);
-  }, []);
+  const { data: fixtures = [] } = useFixturesQuery();
 
   const currentRival = useMemo(
     () => RIVAL_RECORDS.find((r) => r.key === selectedRival) || RIVAL_RECORDS[0],
     [selectedRival],
   );
 
-  // Fenerbahçe'nin son 5 bitmiş maçtaki form grafiği (G / B / M)
   const recentForm = useMemo(() => {
     const finished = fixtures
       .filter(
         (m) =>
           m.branch === "Futbol" &&
+          resolveMatchStatus(m) === "finished" &&
           m.homeScore != null &&
           m.awayScore != null,
       )
@@ -140,13 +131,12 @@ export default function DerbiMerkeziScreen() {
       <Stack.Screen
         options={{
           title: "Derbi Merkezi & H2H",
-          headerStyle: { backgroundColor: Colors.brand.navy },
-          headerTintColor: Colors.brand.yellow,
+          headerStyle: { backgroundColor: brand.navy },
+          headerTintColor: brand.yellow,
           headerBackTitle: "Geri",
         }}
       />
 
-      {/* Rakip Seçici */}
       <View style={styles.rivalTabs}>
         {RIVAL_RECORDS.map((r) => {
           const isActive = r.key === selectedRival;
@@ -156,19 +146,20 @@ export default function DerbiMerkeziScreen() {
               style={[
                 styles.rivalTabBtn,
                 {
-                  backgroundColor: isActive
-                    ? Colors.brand.navy
-                    : theme.cardBackground,
-                  borderColor: isActive ? Colors.brand.yellow : theme.placeholder,
+                  backgroundColor: isActive ? brand.navy : theme.cardBackground,
+                  borderColor: isActive ? brand.yellow : theme.border,
                 },
               ]}
-              onPress={() => setSelectedRival(r.key)}
+              onPress={() => {
+                triggerSelectionHaptic();
+                setSelectedRival(r.key);
+              }}
               activeOpacity={0.8}
             >
               <Text
                 style={[
                   styles.rivalTabText,
-                  { color: isActive ? Colors.brand.yellow : theme.text },
+                  { color: isActive ? brand.yellow : theme.text },
                 ]}
               >
                 vs {r.name}
@@ -178,9 +169,15 @@ export default function DerbiMerkeziScreen() {
         })}
       </View>
 
-      {/* H2H Büyük Karşılaştırma Kartı */}
-      <View style={styles.heroCard}>
-        <Text style={styles.heroSubtitle}>TÜM ZAMANLAR REKABET RAPORU</Text>
+      <LinearGradient
+        colors={[brand.navyLight, brand.navyDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.heroCard, { borderColor: brand.yellow }]}
+      >
+        <Text style={[styles.heroSubtitle, { color: brand.yellow }]}>
+          TÜM ZAMANLAR REKABET RAPORU
+        </Text>
         <View style={styles.teamsRow}>
           <View style={styles.teamCol}>
             <CloudinaryImage
@@ -191,8 +188,16 @@ export default function DerbiMerkeziScreen() {
             <Text style={styles.teamName}>Fenerbahçe</Text>
           </View>
 
-          <View style={styles.totalBox}>
-            <Text style={styles.totalCount}>{currentRival.totalMatches}</Text>
+          <View style={[styles.totalBox, { borderColor: brand.yellow }]}>
+            <Text
+              style={[
+                styles.totalCount,
+                styles.tabularNumbers,
+                { color: brand.yellow },
+              ]}
+            >
+              {currentRival.totalMatches}
+            </Text>
             <Text style={styles.totalLabel}>MAÇ</Text>
           </View>
 
@@ -206,34 +211,50 @@ export default function DerbiMerkeziScreen() {
           </View>
         </View>
 
-        {/* Galibiyet / Beraberlik / Mağlubiyet Sayıları */}
         <View style={styles.h2hNumbersRow}>
           <View style={styles.h2hStatBox}>
-            <Text style={[styles.h2hBigNum, { color: Colors.brand.yellow }]}>
+            <Text
+              style={[
+                styles.h2hBigNum,
+                styles.tabularNumbers,
+                { color: brand.yellow },
+              ]}
+            >
               {currentRival.fbWins}
             </Text>
             <Text style={styles.h2hStatLabel}>FB Galibiyeti</Text>
           </View>
           <View style={styles.h2hStatBox}>
-            <Text style={[styles.h2hBigNum, { color: "#CFD8DC" }]}>
+            <Text
+              style={[
+                styles.h2hBigNum,
+                styles.tabularNumbers,
+                { color: "#CFD8DC" },
+              ]}
+            >
               {currentRival.draws}
             </Text>
             <Text style={styles.h2hStatLabel}>Beraberlik</Text>
           </View>
           <View style={styles.h2hStatBox}>
-            <Text style={[styles.h2hBigNum, { color: "#FF8A80" }]}>
+            <Text
+              style={[
+                styles.h2hBigNum,
+                styles.tabularNumbers,
+                { color: "#FF8A80" },
+              ]}
+            >
               {currentRival.rivalWins}
             </Text>
             <Text style={styles.h2hStatLabel}>{currentRival.name}</Text>
           </View>
         </View>
 
-        {/* Oran Barı */}
         <View style={styles.barContainer}>
           <View
             style={{
               width: `${winPct}%`,
-              backgroundColor: Colors.brand.yellow,
+              backgroundColor: brand.yellow,
               height: "100%",
             }}
           />
@@ -247,29 +268,35 @@ export default function DerbiMerkeziScreen() {
           <View
             style={{
               width: `${lossPct}%`,
-              backgroundColor: "#E53935",
+              backgroundColor: brand.liveRed,
               height: "100%",
             }}
           />
         </View>
 
-        {/* Goller */}
         <View style={styles.goalsRow}>
           <Text style={styles.goalText}>
-            ⚽ FB Golü: <Text style={{ fontWeight: "900" }}>{currentRival.fbGoals}</Text>
+            ⚽ FB Golü:{" "}
+            <Text style={[styles.tabularNumbers, { fontWeight: "900" }]}>
+              {currentRival.fbGoals}
+            </Text>
           </Text>
           <Text style={styles.goalText}>
             Rakip Golü:{" "}
-            <Text style={{ fontWeight: "900" }}>{currentRival.rivalGoals}</Text>
+            <Text style={[styles.tabularNumbers, { fontWeight: "900" }]}>
+              {currentRival.rivalGoals}
+            </Text>
           </Text>
         </View>
-      </View>
+      </LinearGradient>
 
-      {/* Tarihi Fark ve Not Kartı */}
       <View
-        style={[styles.infoCard, { backgroundColor: theme.cardBackground }]}
+        style={[
+          styles.infoCard,
+          { backgroundColor: theme.cardBackground, borderColor: theme.border },
+        ]}
       >
-        <Text style={[styles.cardHeading, { color: Colors.brand.navy }]}>
+        <Text style={[styles.cardHeading, { color: theme.accent }]}>
           🏆 UNUTULMAZ DERBİ ZAFERİ
         </Text>
         <Text style={[styles.biggestWinText, { color: theme.text }]}>
@@ -280,11 +307,13 @@ export default function DerbiMerkeziScreen() {
         </Text>
       </View>
 
-      {/* Fenerbahçe Son Maçlar Form Grafiği */}
       <View
-        style={[styles.infoCard, { backgroundColor: theme.cardBackground }]}
+        style={[
+          styles.infoCard,
+          { backgroundColor: theme.cardBackground, borderColor: theme.border },
+        ]}
       >
-        <Text style={[styles.cardHeading, { color: Colors.brand.navy }]}>
+        <Text style={[styles.cardHeading, { color: theme.accent }]}>
           📈 FENERBAHÇE SON MAÇ FORMU
         </Text>
         {recentForm.length > 0 ? (
@@ -292,15 +321,15 @@ export default function DerbiMerkeziScreen() {
             {recentForm.map((f) => {
               const badgeColor =
                 f.result === "G"
-                  ? "#00C853"
+                  ? brand.winGreen
                   : f.result === "B"
-                    ? "#FFA000"
-                    : "#E53935";
+                    ? brand.drawAmber
+                    : brand.lossRed;
               return (
                 <TouchableOpacity
                   key={f.id}
                   onPress={() => router.push(`/mac/${f.id}` as any)}
-                  style={styles.formRow}
+                  style={[styles.formRow, { borderBottomColor: theme.divider }]}
                 >
                   <View
                     style={[styles.formBadge, { backgroundColor: badgeColor }]}
@@ -313,7 +342,13 @@ export default function DerbiMerkeziScreen() {
                   >
                     vs {f.opponent}
                   </Text>
-                  <Text style={[styles.formScore, { color: theme.text }]}>
+                  <Text
+                    style={[
+                      styles.formScore,
+                      styles.tabularNumbers,
+                      { color: theme.text },
+                    ]}
+                  >
                     {f.score}
                   </Text>
                 </TouchableOpacity>
@@ -338,6 +373,9 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
+  tabularNumbers: {
+    fontVariant: ["tabular-nums"],
+  },
   rivalTabs: {
     flexDirection: "row",
     gap: 8,
@@ -355,15 +393,12 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   heroCard: {
-    backgroundColor: Colors.brand.navy,
-    borderRadius: 16,
+    borderRadius: Radius.lg,
     padding: 18,
     marginBottom: 16,
     borderWidth: 1.5,
-    borderColor: Colors.brand.yellow,
   },
   heroSubtitle: {
-    color: Colors.brand.yellow,
     fontSize: 11,
     fontWeight: "900",
     textAlign: "center",
@@ -394,14 +429,12 @@ const styles = StyleSheet.create({
   totalBox: {
     backgroundColor: "rgba(255, 237, 0, 0.15)",
     borderWidth: 1,
-    borderColor: Colors.brand.yellow,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 12,
     alignItems: "center",
   },
   totalCount: {
-    color: Colors.brand.yellow,
     fontSize: 22,
     fontWeight: "900",
   },
@@ -446,14 +479,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   infoCard: {
-    borderRadius: 14,
+    borderRadius: Radius.md,
+    borderWidth: 1,
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   cardHeading: {
     fontSize: 12,
@@ -475,7 +504,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 6,
     borderBottomWidth: 0.5,
-    borderBottomColor: "rgba(0,0,0,0.06)",
   },
   formBadge: {
     width: 26,

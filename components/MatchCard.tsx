@@ -1,14 +1,11 @@
 import CloudinaryImage from "@/components/CloudinaryImage";
-import Colors from "@/constants/Colors";
+import { LivePill } from "@/components/ui/LivePulseDot";
+import { Radius } from "@/constants/theme";
+import { useAppTheme } from "@/context/ThemeContext";
+import { resolveMatchStatus } from "@/services/fixtureService";
 import { MatchStatus } from "@/types";
 import React from "react";
-import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useColorScheme,
-  View,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface MatchCardProps {
   id?: string;
@@ -31,7 +28,6 @@ interface MatchCardProps {
 }
 
 export default function MatchCard({
-  id,
   homeTeam,
   homeLogo,
   homeScore,
@@ -49,11 +45,14 @@ export default function MatchCard({
   isFullWidth = false,
   onPress,
 }: MatchCardProps) {
-  const colorScheme = useColorScheme() ?? "light";
-  const theme = Colors[colorScheme];
+  const { theme, brand } = useAppTheme();
 
-  const isLive = status === "live";
-  const hasScore = isLive || (homeScore != null && awayScore != null);
+  const resolvedStatus = resolveMatchStatus({ status, homeScore, awayScore });
+  const isLive = resolvedStatus === "live";
+  const hasScore =
+    isLive ||
+    resolvedStatus === "finished" ||
+    (homeScore != null && awayScore != null);
 
   return (
     <TouchableOpacity
@@ -64,28 +63,22 @@ export default function MatchCard({
         styles.card,
         {
           backgroundColor: theme.cardBackground,
-          width: isFullWidth ? "100%" : 280,
-          marginRight: isFullWidth ? 0 : 16,
-          borderColor: isLive ? "#E53935" : Colors.light.placeholder,
+          width: isFullWidth ? "100%" : 284,
+          marginRight: isFullWidth ? 0 : 14,
+          borderColor: isLive ? brand.liveRed : theme.border,
           borderWidth: isLive ? 1.5 : 1,
         },
       ]}
     >
-      <View style={styles.topBar}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <View style={[styles.topBar, { borderBottomColor: theme.divider }]}>
+        <View style={styles.topLeft}>
           <Text
-            style={[styles.branchText, { color: Colors.brand.navy }]}
+            style={[styles.branchText, { color: theme.accent }]}
             numberOfLines={1}
           >
             {branch}
           </Text>
-          {isLive && (
-            <View style={styles.livePill}>
-              <Text style={styles.livePillText}>
-                ● {liveClock || "CANLI"}
-              </Text>
-            </View>
-          )}
+          {isLive && <LivePill label={liveClock || "CANLI"} compact />}
         </View>
         <Text
           style={[styles.competitionText, { color: theme.secondaryText }]}
@@ -124,8 +117,9 @@ export default function MatchCard({
             <Text
               style={[
                 styles.timeText,
+                styles.tabularNumbers,
                 {
-                  color: isLive ? "#E53935" : theme.text,
+                  color: isLive ? brand.liveRed : theme.text,
                   fontSize: 24,
                   letterSpacing: 1,
                 },
@@ -143,7 +137,11 @@ export default function MatchCard({
                 {date}
               </Text>
               <Text
-                style={[styles.timeText, { color: Colors.brand.navy }]}
+                style={[
+                  styles.timeText,
+                  styles.tabularNumbers,
+                  { color: theme.accent },
+                ]}
                 numberOfLines={1}
               >
                 {time}
@@ -190,14 +188,13 @@ export default function MatchCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 10,
-    padding: 12,
-    marginVertical: 8,
-    marginLeft: 2,
-    shadowColor: Colors.light.text,
+    borderRadius: Radius.md,
+    padding: 13,
+    marginVertical: 6,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowRadius: 5,
     elevation: 2,
     flexDirection: "column",
   },
@@ -206,28 +203,20 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: Colors.light.placeholder,
     paddingBottom: 8,
     marginBottom: 12,
     gap: 8,
   },
+  topLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   branchText: {
     fontSize: 11,
-    fontWeight: "bold",
+    fontWeight: "800",
     textTransform: "uppercase",
     flexShrink: 1,
-  },
-  livePill: {
-    backgroundColor: "#E53935",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  livePillText: {
-    color: "#FFFFFF",
-    fontSize: 9,
-    fontWeight: "900",
-    letterSpacing: 0.4,
   },
   competitionText: {
     fontSize: 11,
@@ -278,6 +267,9 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginBottom: 2,
     textAlign: "center",
+  },
+  tabularNumbers: {
+    fontVariant: ["tabular-nums"],
   },
   stadiumText: {
     fontSize: 9,

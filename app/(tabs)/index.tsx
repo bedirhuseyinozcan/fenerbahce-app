@@ -1,34 +1,38 @@
 import CloudinaryImage from "@/components/CloudinaryImage";
 import MatchCard from "@/components/MatchCard";
-import Colors from "@/constants/Colors";
+import { LivePill } from "@/components/ui/LivePulseDot";
+import {
+  HeroSkeleton,
+  MatchCardSkeleton,
+  NewsCardSkeleton,
+  StandingsSkeleton,
+} from "@/components/ui/Skeleton";
+import { Radius } from "@/constants/theme";
+import { useAppTheme } from "@/context/ThemeContext";
 import { getTodayHistoricalEvent } from "@/data/historyData";
 import {
-  fallbackCuratedFixtures,
-  fetchFixtures,
-  getCachedFixturesSync,
+  useFixturesQuery,
+  useKadikoyWeatherQuery,
+  useNewsQuery,
+  useStandingsQuery,
+} from "@/hooks/useSportsQueries";
+import {
+  isHomeIstanbulMatch,
+  isSameIstanbulCalendarDay,
+  resolveMatchStatus,
 } from "@/services/fixtureService";
-import { fetchNews } from "@/services/newsService";
-import {
-  fetchSuperLigStandings,
-  getCachedStandingsSync,
-} from "@/services/standingsService";
-import {
-  fetchKadikoyWeather,
-  MatchWeatherInfo,
-} from "@/services/weatherService";
-import { MatchData, NewsData, TeamStanding } from "@/types";
+import { openInAppUrl } from "@/utils/browser";
+import { triggerSelectionHaptic } from "@/utils/haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Image,
-  Linking,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -77,87 +81,47 @@ function calculateTimeLeft(rawDate?: string): CountdownTime {
 }
 
 export default function TabOneScreen() {
-  const colorScheme = useColorScheme() ?? "light";
-  const theme = Colors[colorScheme];
+  const { theme, brand } = useAppTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const [allFixtures, setAllFixtures] = useState<MatchData[]>(
-    () => getCachedFixturesSync() || [],
-  );
   const [selectedHeroBranch, setSelectedHeroBranch] = useState<
     "Futbol" | "Basketbol" | "Voleybol"
   >("Futbol");
-  const [loading, setLoading] = useState(() => !getCachedFixturesSync());
   const [refreshing, setRefreshing] = useState(false);
 
-  const [news, setNews] = useState<NewsData[]>([]);
-  const [newsLoading, setNewsLoading] = useState(true);
+  const {
+    data: allFixtures = [],
+    isLoading: fixturesLoading,
+    refetch: refetchFixtures,
+  } = useFixturesQuery();
 
-  const [standings, setStandings] = useState<TeamStanding[]>(() =>
-    (getCachedStandingsSync("superlig") || []).slice(0, 5),
-  );
-  const [weather, setWeather] = useState<MatchWeatherInfo | null>(null);
+  const {
+    data: standingsData = [],
+    isLoading: standingsLoading,
+    refetch: refetchStandings,
+  } = useStandingsQuery("superlig");
+
+  const {
+    data: newsData = [],
+    isLoading: newsLoading,
+    refetch: refetchNews,
+  } = useNewsQuery();
+
+  const standings = useMemo(() => standingsData.slice(0, 5), [standingsData]);
+  const news = useMemo(() => newsData.slice(0, 5), [newsData]);
   const todayHistory = useMemo(() => getTodayHistoricalEvent(), []);
 
-  const loadData = useCallback(async (force: boolean = false, silent: boolean = false) => {
-    if (!silent) {
-      setNewsLoading(true);
-    }
-
-    fetchFixtures(force).then((fixturesData) => {
-      setAllFixtures(fixturesData);
-      setLoading(false);
-      setRefreshing(false);
-    });
-
-    fetchSuperLigStandings(force).then((standingsData) => {
-      setStandings(standingsData.slice(0, 5));
-    });
-
-    fetchNews().then((newsData) => {
-      setNews(newsData.slice(0, 5));
-      setNewsLoading(false);
-    });
-
-    fetchKadikoyWeather().then((w) => {
-      if (w) setWeather(w);
-    });
-  }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // Canlı maç varsa 20 saniyede bir, yoksa 60 saniyede bir otomatik güncelleme (K2 düzeltmesi)
-  useEffect(() => {
-    const hasLive = allFixtures.some((m) => m.status === "live");
-    const intervalMs = hasLive ? 20000 : 60000;
-    const timer = setInterval(() => {
-      loadData(true, true);
-    }, intervalMs);
-    return () => clearInterval(timer);
-  }, [loadData, allFixtures]);
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    loadData(true, true);
-  }, [loadData]);
-
   const nextMatch = useMemo(() => {
-    // Önce seçili branşta canlı maç var mı bak
     const branchLive = allFixtures.find(
       (m) => m.branch === selectedHeroBranch && m.status === "live",
     );
     if (branchLive) return branchLive;
 
-    // Sonra seçili branşta yaklaşan maç var mı bak
     const branchUpcoming = allFixtures.find(
       (m) =>
         m.branch === selectedHeroBranch &&
-        m.status !== "finished" &&
-        m.homeScore === null &&
-        m.awayScore === null,
+        resolveMatchStatus(m) === "upcoming",
     );
     if (branchUpcoming) return branchUpcoming;
 
@@ -169,12 +133,30 @@ export default function TabOneScreen() {
     return allFixtures[0] || null;
   }, [allFixtures, selectedHeroBranch]);
 
+  const showKadikoyWeather = useMemo(
+    () => isHomeIstanbulMatch(nextMatch),
+    [nextMatch],
+  );
+  const { data: weather } = useKadikoyWeatherQuery(showKadikoyWeather);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refetchFixtures(),
+        refetchStandings(),
+        refetchNews(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchFixtures, refetchStandings, refetchNews]);
+
   const upcomingMatches = useMemo(() => {
-    const liveAndUpcoming = allFixtures.filter(
-      (m) =>
-        m.status === "live" ||
-        (m.homeScore === null && m.awayScore === null),
-    );
+    const liveAndUpcoming = allFixtures.filter((m) => {
+      const st = resolveMatchStatus(m);
+      return st === "live" || st === "upcoming";
+    });
     return (liveAndUpcoming.length > 0 ? liveAndUpcoming : allFixtures).slice(
       0,
       5,
@@ -212,16 +194,13 @@ export default function TabOneScreen() {
     return () => clearInterval(interval);
   }, [nextMatch?.rawDate]);
 
-  const isNextMatchSameCalendarDay = useMemo(() => {
-    if (!nextMatch?.rawDate) return false;
-    const d1 = new Date(nextMatch.rawDate);
-    const d2 = new Date();
-    return (
-      d1.getFullYear() === d2.getFullYear() &&
-      d1.getMonth() === d2.getMonth() &&
-      d1.getDate() === d2.getDate()
-    );
-  }, [nextMatch?.rawDate]);
+  const isNextMatchSameCalendarDay = useMemo(
+    () => isSameIstanbulCalendarDay(nextMatch?.rawDate),
+    [nextMatch?.rawDate],
+  );
+
+  const nextMatchStatus = nextMatch ? resolveMatchStatus(nextMatch) : "upcoming";
+  const loading = fixturesLoading && allFixtures.length === 0;
 
   return (
     <ScrollView
@@ -231,13 +210,18 @@ export default function TabOneScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          tintColor={Colors.brand.navy}
-          colors={[Colors.brand.navy, Colors.brand.yellow]}
+          tintColor={theme.accent}
+          colors={[brand.navy, brand.yellow]}
         />
       }
     >
       {nextMatch ? (
-        <View style={[styles.heroContainer, { marginTop: insets.top }]}>
+        <View
+          style={[
+            styles.heroContainer,
+            { paddingTop: insets.top, backgroundColor: brand.navy },
+          ]}
+        >
           <Image
             source={{
               uri: "https://media.fenerbahce.org/getmedia/5c3702c2-d352-45e3-b09e-7341857c50be/stad.jpg",
@@ -245,11 +229,9 @@ export default function TabOneScreen() {
             style={styles.heroImage}
             resizeMode="cover"
           />
-          <View
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: "rgba(7, 33, 70, 0.88)" },
-            ]}
+          <LinearGradient
+            colors={["rgba(4, 21, 46, 0.72)", "rgba(7, 33, 70, 0.94)"]}
+            style={StyleSheet.absoluteFill}
           />
 
           <View style={styles.heroContent}>
@@ -267,15 +249,24 @@ export default function TabOneScreen() {
                     key={branch}
                     style={[
                       styles.heroBranchTab,
-                      isSelected && styles.heroBranchTabActive,
+                      isSelected && [
+                        styles.heroBranchTabActive,
+                        { backgroundColor: brand.yellow },
+                      ],
                     ]}
-                    onPress={() => setSelectedHeroBranch(branch)}
+                    onPress={() => {
+                      triggerSelectionHaptic();
+                      setSelectedHeroBranch(branch);
+                    }}
                     activeOpacity={0.8}
                   >
                     <Text
                       style={[
                         styles.heroBranchTabText,
-                        isSelected && styles.heroBranchTabTextActive,
+                        isSelected && [
+                          styles.heroBranchTabTextActive,
+                          { color: brand.navy },
+                        ],
                       ]}
                     >
                       {emoji} {branch}
@@ -305,25 +296,17 @@ export default function TabOneScreen() {
               </View>
 
               <View style={styles.heroScoreBoard}>
-                {nextMatch.status === "live" ||
-                (nextMatch.homeScore != null && nextMatch.awayScore != null) ? (
+                {nextMatchStatus === "live" || nextMatchStatus === "finished" ? (
                   <>
                     <Text style={styles.heroDate}>{nextMatch.date}</Text>
-                    <Text style={styles.heroTime}>
+                    <Text style={[styles.heroTime, styles.tabularNumbers]}>
                       {nextMatch.homeScore ?? "0"} - {nextMatch.awayScore ?? "0"}
                     </Text>
                     <Text style={styles.heroStadium} numberOfLines={1}>
                       📍 {nextMatch.stadium}
                     </Text>
-                    {weather && (
-                      <Text
-                        style={{
-                          color: Colors.brand.yellow,
-                          fontSize: 10,
-                          fontWeight: "bold",
-                          marginTop: 2,
-                        }}
-                      >
+                    {showKadikoyWeather && weather && (
+                      <Text style={styles.heroWeatherText}>
                         {weather.emoji} Kadıköy {weather.temperatureC}°C •{" "}
                         {weather.conditionLabel}
                       </Text>
@@ -332,19 +315,14 @@ export default function TabOneScreen() {
                 ) : (
                   <>
                     <Text style={styles.heroDate}>{nextMatch.date}</Text>
-                    <Text style={styles.heroTime}>{nextMatch.time}</Text>
+                    <Text style={[styles.heroTime, styles.tabularNumbers]}>
+                      {nextMatch.time}
+                    </Text>
                     <Text style={styles.heroStadium} numberOfLines={1}>
                       📍 {nextMatch.stadium}
                     </Text>
-                    {weather && (
-                      <Text
-                        style={{
-                          color: Colors.brand.yellow,
-                          fontSize: 10,
-                          fontWeight: "bold",
-                          marginTop: 2,
-                        }}
-                      >
+                    {showKadikoyWeather && weather && (
+                      <Text style={styles.heroWeatherText}>
                         {weather.emoji} Kadıköy {weather.temperatureC}°C •{" "}
                         {weather.conditionLabel}
                       </Text>
@@ -365,15 +343,11 @@ export default function TabOneScreen() {
               </View>
             </View>
 
-            {nextMatch.status === "live" ? (
-              <View
-                style={[styles.matchDayBanner, { backgroundColor: "#E53935" }]}
-              >
-                <Text
-                  style={[styles.matchDayBannerText, { color: "#FFFFFF" }]}
-                >
-                  🔴 CANLI OYNANIYOR {nextMatch.liveClock ? `• ${nextMatch.liveClock}` : ""}
-                </Text>
+            {nextMatchStatus === "live" ? (
+              <View style={styles.liveBannerWrap}>
+                <LivePill
+                  label={`CANLI OYNANIYOR${nextMatch.liveClock ? ` • ${nextMatch.liveClock}` : ""}`}
+                />
               </View>
             ) : !countdown.isPast ? (
               <View style={styles.countdownContainer}>
@@ -382,36 +356,35 @@ export default function TabOneScreen() {
                 </Text>
                 <View style={styles.countdownRow}>
                   <View style={styles.countdownBox}>
-                    <Text style={styles.countdownNumber}>
+                    <Text style={[styles.countdownNumber, styles.tabularNumbers]}>
                       {String(countdown.days).padStart(2, "0")}
                     </Text>
                     <Text style={styles.countdownLabel}>GÜN</Text>
                   </View>
                   <Text style={styles.countdownColon}>:</Text>
                   <View style={styles.countdownBox}>
-                    <Text style={styles.countdownNumber}>
+                    <Text style={[styles.countdownNumber, styles.tabularNumbers]}>
                       {String(countdown.hours).padStart(2, "0")}
                     </Text>
                     <Text style={styles.countdownLabel}>SAAT</Text>
                   </View>
                   <Text style={styles.countdownColon}>:</Text>
                   <View style={styles.countdownBox}>
-                    <Text style={styles.countdownNumber}>
+                    <Text style={[styles.countdownNumber, styles.tabularNumbers]}>
                       {String(countdown.minutes).padStart(2, "0")}
                     </Text>
                     <Text style={styles.countdownLabel}>DAKİKA</Text>
                   </View>
                   <Text style={styles.countdownColon}>:</Text>
                   <View style={styles.countdownBox}>
-                    <Text style={styles.countdownNumber}>
+                    <Text style={[styles.countdownNumber, styles.tabularNumbers]}>
                       {String(countdown.seconds).padStart(2, "0")}
                     </Text>
                     <Text style={styles.countdownLabel}>SANİYE</Text>
                   </View>
                 </View>
               </View>
-            ) : nextMatch.status === "finished" ||
-              (nextMatch.homeScore != null && nextMatch.awayScore != null) ? (
+            ) : nextMatchStatus === "finished" ? (
               <View style={styles.matchDayBanner}>
                 <Text style={styles.matchDayBannerText}>
                   🏁 MAÇ SONUCU: {nextMatch.homeScore} - {nextMatch.awayScore}
@@ -424,18 +397,19 @@ export default function TabOneScreen() {
                 </Text>
               </View>
             ) : null}
+
             <View style={styles.heroButtonsRow}>
               <TouchableOpacity
                 style={styles.heroActionBtn}
                 onPress={() => router.push(`/mac/${nextMatch.id}` as any)}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
               >
                 <Text style={styles.heroActionBtnText}>Maç Detayı</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.heroSecondaryBtn}
                 onPress={() => router.push("/fikstur")}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
               >
                 <Text style={styles.heroSecondaryBtnText}>Tüm Fikstür</Text>
               </TouchableOpacity>
@@ -447,27 +421,31 @@ export default function TabOneScreen() {
           style={[
             styles.heroContainer,
             {
-              marginTop: insets.top,
-              backgroundColor: Colors.brand.navy,
+              paddingTop: insets.top,
+              backgroundColor: brand.navy,
               justifyContent: "center",
               alignItems: "center",
             },
           ]}
         >
           {loading ? (
-            <ActivityIndicator color={Colors.brand.yellow} />
+            <HeroSkeleton />
           ) : (
-            <Text style={{ color: Colors.brand.white }}>
+            <Text style={{ color: brand.white }}>
               Sıradaki maç bilgisi bekleniyor...
             </Text>
           )}
         </View>
       )}
+
       <View style={styles.quickActionsContainer}>
         <TouchableOpacity
           style={[
             styles.quickActionBtn,
-            { backgroundColor: theme.cardBackground },
+            {
+              backgroundColor: theme.cardBackground,
+              borderColor: theme.border,
+            },
           ]}
           onPress={() => router.push("/sporcular" as any)}
           activeOpacity={0.8}
@@ -475,7 +453,7 @@ export default function TabOneScreen() {
           <View
             style={[
               styles.quickActionIconBox,
-              { backgroundColor: "rgba(7, 33, 70, 0.1)" },
+              { backgroundColor: theme.accentSoft },
             ]}
           >
             <Text style={{ fontSize: 18 }}>👥</Text>
@@ -488,7 +466,10 @@ export default function TabOneScreen() {
         <TouchableOpacity
           style={[
             styles.quickActionBtn,
-            { backgroundColor: theme.cardBackground },
+            {
+              backgroundColor: theme.cardBackground,
+              borderColor: theme.border,
+            },
           ]}
           onPress={() => router.push("/puan-durumu" as any)}
           activeOpacity={0.8}
@@ -496,7 +477,7 @@ export default function TabOneScreen() {
           <View
             style={[
               styles.quickActionIconBox,
-              { backgroundColor: "rgba(255, 160, 0, 0.15)" },
+              { backgroundColor: "rgba(255, 160, 0, 0.16)" },
             ]}
           >
             <Text style={{ fontSize: 18 }}>🏆</Text>
@@ -509,7 +490,10 @@ export default function TabOneScreen() {
         <TouchableOpacity
           style={[
             styles.quickActionBtn,
-            { backgroundColor: theme.cardBackground },
+            {
+              backgroundColor: theme.cardBackground,
+              borderColor: theme.border,
+            },
           ]}
           onPress={() => router.push("/haberler" as any)}
           activeOpacity={0.8}
@@ -517,7 +501,7 @@ export default function TabOneScreen() {
           <View
             style={[
               styles.quickActionIconBox,
-              { backgroundColor: "rgba(30, 136, 229, 0.15)" },
+              { backgroundColor: "rgba(30, 136, 229, 0.16)" },
             ]}
           >
             <Text style={{ fontSize: 18 }}>📰</Text>
@@ -530,7 +514,10 @@ export default function TabOneScreen() {
         <TouchableOpacity
           style={[
             styles.quickActionBtn,
-            { backgroundColor: theme.cardBackground },
+            {
+              backgroundColor: theme.cardBackground,
+              borderColor: theme.border,
+            },
           ]}
           onPress={() => router.push("/derbi-merkezi" as any)}
           activeOpacity={0.8}
@@ -538,7 +525,7 @@ export default function TabOneScreen() {
           <View
             style={[
               styles.quickActionIconBox,
-              { backgroundColor: "rgba(229, 57, 53, 0.15)" },
+              { backgroundColor: "rgba(239, 68, 68, 0.16)" },
             ]}
           >
             <Text style={{ fontSize: 18 }}>⚔️</Text>
@@ -549,77 +536,25 @@ export default function TabOneScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* TARİHTE BUGÜN KARTI (Faz 4) */}
-      <View
-        style={{
-          marginHorizontal: 16,
-          marginTop: 12,
-          padding: 14,
-          borderRadius: 12,
-          backgroundColor: Colors.brand.navy,
-          borderWidth: 1,
-          borderColor: "rgba(255, 237, 0, 0.35)",
-        }}
+      <LinearGradient
+        colors={[brand.navyLight, brand.navyDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.historyCard}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 6,
-          }}
-        >
-          <Text
-            style={{
-              color: Colors.brand.yellow,
-              fontSize: 11,
-              fontWeight: "900",
-              letterSpacing: 0.6,
-            }}
-          >
+        <View style={styles.historyHeader}>
+          <Text style={styles.historyTag}>
             📜 TARİHTE FENERBAHÇE • {todayHistory.year}
           </Text>
           {todayHistory.score && (
-            <View
-              style={{
-                backgroundColor: Colors.brand.yellow,
-                paddingHorizontal: 8,
-                paddingVertical: 2,
-                borderRadius: 8,
-              }}
-            >
-              <Text
-                style={{
-                  color: Colors.brand.navy,
-                  fontSize: 10,
-                  fontWeight: "900",
-                }}
-              >
-                {todayHistory.score}
-              </Text>
+            <View style={styles.historyScoreBadge}>
+              <Text style={styles.historyScoreText}>{todayHistory.score}</Text>
             </View>
           )}
         </View>
-        <Text
-          style={{
-            color: "#FFFFFF",
-            fontSize: 14,
-            fontWeight: "bold",
-            marginBottom: 4,
-          }}
-        >
-          {todayHistory.title}
-        </Text>
-        <Text
-          style={{
-            color: "rgba(255, 255, 255, 0.85)",
-            fontSize: 12,
-            lineHeight: 17,
-          }}
-        >
-          {todayHistory.description}
-        </Text>
-      </View>
+        <Text style={styles.historyTitle}>{todayHistory.title}</Text>
+        <Text style={styles.historyDesc}>{todayHistory.description}</Text>
+      </LinearGradient>
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -627,14 +562,21 @@ export default function TabOneScreen() {
             MAÇ TAKVİMİ
           </Text>
           <TouchableOpacity onPress={() => router.push("/fikstur")}>
-            <Text style={styles.sectionLink}>+ Tüm Maçlar</Text>
+            <Text style={[styles.sectionLink, { color: theme.accent }]}>
+              + Tüm Maçlar
+            </Text>
           </TouchableOpacity>
         </View>
 
         {loading ? (
-          <View style={{ padding: 20, alignItems: "center" }}>
-            <ActivityIndicator size="small" color={Colors.brand.navy} />
-          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.matchList}
+          >
+            <MatchCardSkeleton />
+            <MatchCardSkeleton />
+          </ScrollView>
         ) : (
           <ScrollView
             horizontal
@@ -679,137 +621,163 @@ export default function TabOneScreen() {
             SÜPER LİG PUAN DURUMU
           </Text>
           <TouchableOpacity onPress={() => router.push("/puan-durumu")}>
-            <Text style={styles.sectionLink}>+ Tüm Liste</Text>
+            <Text style={[styles.sectionLink, { color: theme.accent }]}>
+              + Tüm Liste
+            </Text>
           </TouchableOpacity>
         </View>
-        <View
-          style={[
-            styles.standingsContainer,
-            { backgroundColor: theme.cardBackground },
-          ]}
-        >
-          <View style={styles.standingsHeaderRow}>
-            <Text style={[styles.standingsHeaderText, { flex: 0.5 }]}>#</Text>
-            <Text style={[styles.standingsHeaderText, { flex: 3 }]}>TAKIM</Text>
-            <Text
-              style={[
-                styles.standingsHeaderText,
-                { flex: 1, textAlign: "center" },
-              ]}
-            >
-              O
-            </Text>
-            <Text
-              style={[
-                styles.standingsHeaderText,
-                { flex: 1, textAlign: "center" },
-              ]}
-            >
-              AV
-            </Text>
-            <Text
-              style={[
-                styles.standingsHeaderText,
-                { flex: 1, textAlign: "center" },
-              ]}
-            >
-              P
-            </Text>
+        {standingsLoading && standings.length === 0 ? (
+          <View style={{ marginHorizontal: 16 }}>
+            <StandingsSkeleton rows={5} />
           </View>
-          {loading ? (
-            <View style={{ padding: 20, alignItems: "center" }}>
-              <ActivityIndicator color={Colors.brand.navy} />
-            </View>
-          ) : (
-            standings.map((team) => (
-              <View
-                key={team.teamId}
+        ) : (
+          <View
+            style={[
+              styles.standingsContainer,
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.standingsHeaderRow,
+                { borderBottomColor: theme.divider },
+              ]}
+            >
+              <Text
                 style={[
-                  styles.standingsRow,
-                  team.teamName.includes("Fenerbahçe") && {
-                    backgroundColor: "rgba(255, 237, 0, 0.15)",
-                  },
+                  styles.standingsHeaderText,
+                  { flex: 0.5, color: theme.secondaryText },
                 ]}
               >
-                <Text
+                #
+              </Text>
+              <Text
+                style={[
+                  styles.standingsHeaderText,
+                  { flex: 3, color: theme.secondaryText },
+                ]}
+              >
+                TAKIM
+              </Text>
+              <Text
+                style={[
+                  styles.standingsHeaderText,
+                  { flex: 1, textAlign: "center", color: theme.secondaryText },
+                ]}
+              >
+                O
+              </Text>
+              <Text
+                style={[
+                  styles.standingsHeaderText,
+                  { flex: 1, textAlign: "center", color: theme.secondaryText },
+                ]}
+              >
+                AV
+              </Text>
+              <Text
+                style={[
+                  styles.standingsHeaderText,
+                  { flex: 1, textAlign: "center", color: theme.secondaryText },
+                ]}
+              >
+                P
+              </Text>
+            </View>
+            {standings.map((team) => {
+              const isFB = team.teamName.includes("Fenerbahçe");
+              return (
+                <View
+                  key={team.teamId}
                   style={[
-                    styles.standingsText,
-                    { flex: 0.5, fontWeight: "bold", color: theme.text },
+                    styles.standingsRow,
+                    { borderBottomColor: theme.divider },
+                    isFB && { backgroundColor: theme.highlightRow },
                   ]}
                 >
-                  {team.rank}
-                </Text>
-                <View
-                  style={{
-                    flex: 3,
-                    flexDirection: "row",
-                    alignItems: "center",
-                  }}
-                >
-                  <CloudinaryImage
-                    publicId={team.badge}
-                    style={{ width: 20, height: 20, marginRight: 8 }}
-                    contentFit="contain"
-                  />
                   <Text
                     style={[
                       styles.standingsText,
+                      styles.tabularNumbers,
                       {
-                        color: theme.text,
-                        fontWeight: team.teamName.includes("Fenerbahçe")
-                          ? "bold"
-                          : "normal",
-                        fontSize: 13,
+                        flex: 0.5,
+                        fontWeight: "bold",
+                        color: isFB ? theme.accent : theme.text,
                       },
                     ]}
-                    numberOfLines={1}
                   >
-                    {team.teamName}
+                    {team.rank}
+                  </Text>
+                  <View style={styles.standingsTeamCell}>
+                    <CloudinaryImage
+                      publicId={team.badge}
+                      style={{ width: 20, height: 20, marginRight: 8 }}
+                      contentFit="contain"
+                    />
+                    <Text
+                      style={[
+                        styles.standingsText,
+                        {
+                          color: theme.text,
+                          fontWeight: isFB ? "bold" : "normal",
+                          fontSize: 13,
+                        },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {team.teamName}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.standingsText,
+                      styles.tabularNumbers,
+                      {
+                        flex: 1,
+                        textAlign: "center",
+                        color: theme.secondaryText,
+                      },
+                    ]}
+                  >
+                    {team.played}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.standingsText,
+                      styles.tabularNumbers,
+                      {
+                        flex: 1,
+                        textAlign: "center",
+                        color: theme.secondaryText,
+                      },
+                    ]}
+                  >
+                    {team.goalDifference > 0
+                      ? `+${team.goalDifference}`
+                      : team.goalDifference}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.standingsText,
+                      styles.tabularNumbers,
+                      {
+                        flex: 1,
+                        textAlign: "center",
+                        fontWeight: "bold",
+                        color: theme.text,
+                      },
+                    ]}
+                  >
+                    {team.points}
                   </Text>
                 </View>
-                <Text
-                  style={[
-                    styles.standingsText,
-                    {
-                      flex: 1,
-                      textAlign: "center",
-                      color: theme.secondaryText,
-                    },
-                  ]}
-                >
-                  {team.played}
-                </Text>
-                <Text
-                  style={[
-                    styles.standingsText,
-                    {
-                      flex: 1,
-                      textAlign: "center",
-                      color: theme.secondaryText,
-                    },
-                  ]}
-                >
-                  {team.goalDifference > 0
-                    ? `+${team.goalDifference}`
-                    : team.goalDifference}
-                </Text>
-                <Text
-                  style={[
-                    styles.standingsText,
-                    {
-                      flex: 1,
-                      textAlign: "center",
-                      fontWeight: "bold",
-                      color: theme.text,
-                    },
-                  ]}
-                >
-                  {team.points}
-                </Text>
-              </View>
-            ))
-          )}
-        </View>
+              );
+            })}
+          </View>
+        )}
       </View>
 
       <View style={styles.section}>
@@ -818,23 +786,29 @@ export default function TabOneScreen() {
             HABERLER
           </Text>
           <TouchableOpacity onPress={() => router.push("/haberler")}>
-            <Text style={styles.sectionLink}>+ Tüm Haberler</Text>
+            <Text style={[styles.sectionLink, { color: theme.accent }]}>
+              + Tüm Haberler
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {newsLoading ? (
-          <View style={{ padding: 20, alignItems: "center" }}>
-            <ActivityIndicator size="small" color={Colors.brand.navy} />
+        {newsLoading && news.length === 0 ? (
+          <View style={styles.newsList}>
+            <NewsCardSkeleton />
+            <NewsCardSkeleton />
           </View>
         ) : news.length > 0 ? (
           <View style={styles.newsList}>
-            {/* Featured News */}
             <TouchableOpacity
               style={[
                 styles.featuredNewsCard,
-                { backgroundColor: theme.cardBackground },
+                {
+                  backgroundColor: theme.cardBackground,
+                  borderColor: theme.border,
+                },
               ]}
-              onPress={() => Linking.openURL(news[0].link)}
+              onPress={() => openInAppUrl(news[0].link)}
+              activeOpacity={0.85}
             >
               <Image
                 source={{ uri: news[0].image }}
@@ -851,7 +825,9 @@ export default function TabOneScreen() {
                 >
                   {news[0].title}
                 </Text>
-                <Text style={styles.newsDate}>{news[0].date}</Text>
+                <Text style={[styles.newsDate, { color: theme.secondaryText }]}>
+                  {news[0].date}
+                </Text>
               </View>
             </TouchableOpacity>
 
@@ -865,9 +841,13 @@ export default function TabOneScreen() {
                   key={item.id}
                   style={[
                     styles.smallNewsCard,
-                    { backgroundColor: theme.cardBackground },
+                    {
+                      backgroundColor: theme.cardBackground,
+                      borderColor: theme.border,
+                    },
                   ]}
-                  onPress={() => Linking.openURL(item.link)}
+                  onPress={() => openInAppUrl(item.link)}
+                  activeOpacity={0.85}
                 >
                   {item.image ? (
                     <Image
@@ -884,7 +864,7 @@ export default function TabOneScreen() {
                   )}
                   <View style={styles.smallNewsContent}>
                     <Text
-                      style={[styles.newsTagText, { color: Colors.brand.navy }]}
+                      style={[styles.smallNewsTagText, { color: theme.accent }]}
                       numberOfLines={1}
                     >
                       {item.category}
@@ -916,6 +896,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  tabularNumbers: {
+    fontVariant: ["tabular-nums"],
+  },
   quickActionsContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -929,7 +912,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 4,
-    borderRadius: 12,
+    borderRadius: Radius.md,
+    borderWidth: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -953,7 +937,7 @@ const styles = StyleSheet.create({
     width: "100%",
     minHeight: 330,
     position: "relative",
-    paddingBottom: 16,
+    paddingBottom: 18,
   },
   heroImage: {
     ...StyleSheet.absoluteFill,
@@ -971,36 +955,33 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.4)",
     borderRadius: 20,
     padding: 3,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   heroBranchTab: {
     paddingHorizontal: 14,
     paddingVertical: 5,
     borderRadius: 16,
   },
-  heroBranchTabActive: {
-    backgroundColor: Colors.brand.yellow,
-  },
+  heroBranchTabActive: {},
   heroBranchTabText: {
-    color: "rgba(255, 255, 255, 0.75)",
+    color: "rgba(255, 255, 255, 0.78)",
     fontSize: 12,
     fontWeight: "600",
   },
   heroBranchTabTextActive: {
-    color: Colors.brand.navy,
     fontWeight: "bold",
   },
   heroBadge: {
-    backgroundColor: "rgba(255, 237, 0, 0.2)",
+    backgroundColor: "rgba(255, 237, 0, 0.18)",
     borderWidth: 1,
-    borderColor: Colors.brand.yellow,
+    borderColor: "#FFED00",
     paddingHorizontal: 12,
     paddingVertical: 3,
     borderRadius: 12,
     marginBottom: 10,
   },
   heroBadgeText: {
-    color: Colors.brand.yellow,
+    color: "#FFED00",
     fontSize: 11,
     fontWeight: "bold",
   },
@@ -1021,7 +1002,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   heroTeamName: {
-    color: Colors.brand.white,
+    color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "bold",
     textAlign: "center",
@@ -1032,38 +1013,48 @@ const styles = StyleSheet.create({
     flex: 1.2,
   },
   heroDate: {
-    color: Colors.brand.white,
+    color: "#FFFFFF",
     fontSize: 11,
     opacity: 0.85,
     marginBottom: 2,
     textAlign: "center",
   },
   heroTime: {
-    color: Colors.brand.yellow,
+    color: "#FFED00",
     fontSize: 26,
     fontWeight: "900",
     letterSpacing: 1,
   },
   heroStadium: {
-    color: Colors.brand.white,
+    color: "#FFFFFF",
     fontSize: 9,
-    opacity: 0.75,
+    opacity: 0.78,
     marginTop: 3,
     textAlign: "center",
+  },
+  heroWeatherText: {
+    color: "#FFED00",
+    fontSize: 10,
+    fontWeight: "bold",
+    marginTop: 3,
+  },
+  liveBannerWrap: {
+    marginTop: 12,
+    alignItems: "center",
   },
   countdownContainer: {
     marginTop: 12,
     width: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    backgroundColor: "rgba(0, 0, 0, 0.42)",
     borderRadius: 14,
     paddingVertical: 8,
     paddingHorizontal: 12,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255, 237, 0, 0.25)",
+    borderColor: "rgba(255, 237, 0, 0.28)",
   },
   countdownTitle: {
-    color: Colors.brand.yellow,
+    color: "#FFED00",
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 1,
@@ -1076,7 +1067,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   countdownBox: {
-    backgroundColor: "rgba(7, 33, 70, 0.9)",
+    backgroundColor: "rgba(7, 33, 70, 0.92)",
     borderRadius: 8,
     paddingVertical: 4,
     paddingHorizontal: 8,
@@ -1091,26 +1082,26 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   countdownLabel: {
-    color: Colors.brand.yellow,
+    color: "#FFED00",
     fontSize: 8,
     fontWeight: "bold",
     marginTop: 1,
   },
   countdownColon: {
-    color: Colors.brand.yellow,
+    color: "#FFED00",
     fontSize: 16,
     fontWeight: "900",
     marginBottom: 8,
   },
   matchDayBanner: {
     marginTop: 12,
-    backgroundColor: Colors.brand.yellow,
+    backgroundColor: "#FFED00",
     paddingVertical: 6,
     paddingHorizontal: 16,
     borderRadius: 12,
   },
   matchDayBannerText: {
-    color: Colors.brand.navy,
+    color: "#072146",
     fontSize: 12,
     fontWeight: "900",
     letterSpacing: 0.5,
@@ -1123,14 +1114,14 @@ const styles = StyleSheet.create({
   },
   heroActionBtn: {
     flex: 1,
-    backgroundColor: Colors.brand.yellow,
+    backgroundColor: "#FFED00",
     paddingVertical: 9,
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
   },
   heroActionBtnText: {
-    color: Colors.brand.navy,
+    color: "#072146",
     fontSize: 12,
     fontWeight: "bold",
   },
@@ -1138,7 +1129,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.3)",
+    borderColor: "rgba(255, 255, 255, 0.32)",
     paddingVertical: 9,
     borderRadius: 20,
     alignItems: "center",
@@ -1149,7 +1140,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "bold",
   },
-
+  historyCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 15,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: "rgba(255, 237, 0, 0.35)",
+  },
+  historyHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  historyTag: {
+    color: "#FFED00",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.6,
+  },
+  historyScoreBadge: {
+    backgroundColor: "#FFED00",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  historyScoreText: {
+    color: "#072146",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  historyTitle: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  historyDesc: {
+    color: "rgba(255, 255, 255, 0.85)",
+    fontSize: 12,
+    lineHeight: 17,
+  },
   section: {
     marginTop: 24,
   },
@@ -1161,32 +1193,28 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "900",
     textTransform: "uppercase",
+    letterSpacing: 0.3,
   },
   sectionLink: {
     fontSize: 13,
     fontWeight: "bold",
-    color: Colors.brand.navy,
   },
-
   standingsContainer: {
     marginHorizontal: 16,
-    borderRadius: 12,
-    paddingVertical: 8,
+    borderRadius: Radius.md,
+    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.05)",
   },
   standingsHeaderRow: {
     flexDirection: "row",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   standingsHeaderText: {
-    color: Colors.light.secondaryText,
     fontSize: 12,
     fontWeight: "bold",
   },
@@ -1196,33 +1224,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.02)",
+  },
+  standingsTeamCell: {
+    flex: 3,
+    flexDirection: "row",
+    alignItems: "center",
   },
   standingsText: {
     fontSize: 14,
   },
-
   matchList: {
     paddingHorizontal: 16,
     paddingBottom: 10,
   },
-
   newsList: {
     paddingHorizontal: 16,
   },
   featuredNewsCard: {
-    borderRadius: 8,
+    borderRadius: Radius.md,
     overflow: "hidden",
-    marginBottom: 16,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: Colors.light.placeholder,
   },
   featuredNewsImage: {
     width: "100%",
-    height: 200,
+    height: 196,
   },
   featuredNewsContent: {
-    padding: 16,
+    padding: 15,
   },
   newsTag: {
     backgroundColor: "#10B981",
@@ -1233,7 +1262,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   newsTagText: {
-    color: Colors.brand.white,
+    color: "#FFFFFF",
     fontSize: 10,
     fontWeight: "bold",
   },
@@ -1245,69 +1274,18 @@ const styles = StyleSheet.create({
   },
   newsDate: {
     fontSize: 11,
-    color: Colors.light.secondaryText,
   },
-
-  featuredNewsCardEdit: {
-    width: "48%",
-    borderRadius: 8,
-    marginBottom: 16,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: Colors.light.placeholder,
-  },
-  newsImage: {
-    width: "100%",
-    height: 120,
-  },
-  newsBadge: {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    backgroundColor: Colors.brand.navy,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  newsBadgeText: {
-    color: Colors.brand.white,
-    fontSize: 10,
-    fontWeight: "bold",
-  },
-  newsContent: {
-    padding: 12,
-  },
-  newsDateEdit: {
-    color: Colors.light.secondaryText,
-    fontSize: 12,
-    marginBottom: 6,
-  },
-  newsCardTitle: {
-    fontSize: 14,
-    fontWeight: "bold",
-    lineHeight: 20,
-  },
-  storeBanner: {
-    margin: 16,
-    borderRadius: 12,
-    padding: 20,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: Colors.light.placeholder,
-  },
-
   newsGridRow: {
     flexDirection: "row",
     paddingRight: 16,
     paddingBottom: 8,
   },
   smallNewsCard: {
-    width: 160,
+    width: 164,
     marginRight: 12,
-    borderRadius: 8,
+    borderRadius: Radius.md,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: Colors.light.placeholder,
   },
   smallNewsImagePlaceholder: {
     width: "100%",
@@ -1315,6 +1293,10 @@ const styles = StyleSheet.create({
   },
   smallNewsContent: {
     padding: 12,
+  },
+  smallNewsTagText: {
+    fontSize: 10,
+    fontWeight: "bold",
   },
   smallNewsTitle: {
     marginTop: 4,

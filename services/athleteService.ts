@@ -585,6 +585,12 @@ export const fallbackAthletes: Athlete[] = [
   },
 ];
 
+export const LIVE_ROSTER_BRANCHES = new Set<AthleteBranch>([
+  "Futbol",
+  "Basketbol",
+  "Voleybol",
+]);
+
 const athletesCache = new Map<string, { data: Athlete[]; ts: number }>();
 const ATHLETES_TTL_MS = 5 * 60 * 1000;
 
@@ -609,9 +615,9 @@ export const fetchAthletes = async (
 
   if (branch === "Futbol" || branch === "Tümü") {
     try {
-      const res = await fetch(
+      const res = await safeFetch(
         "https://site.api.espn.com/apis/site/v2/sports/soccer/tur.1/teams/436/roster",
-      ).catch(() => null);
+      );
       if (res && res.ok) {
         const data = await res.json();
         if (Array.isArray(data.athletes) && data.athletes.length > 0) {

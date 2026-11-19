@@ -1,22 +1,22 @@
-import Colors from "@/constants/Colors";
-import {
-  fetchAthletes,
-  getFallbackAthletesByBranch,
-} from "@/services/athleteService";
+import { AthleteCardSkeleton } from "@/components/ui/Skeleton";
+import { Radius } from "@/constants/theme";
+import { useAppTheme } from "@/context/ThemeContext";
+import { useAthletesQuery } from "@/hooks/useSportsQueries";
+import { LIVE_ROSTER_BRANCHES } from "@/services/athleteService";
 import { Athlete, AthleteBranch } from "@/types";
+import { triggerSelectionHaptic } from "@/utils/haptics";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image } from "expo-image";
-import { Stack, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { Stack } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Modal,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 
@@ -30,32 +30,31 @@ const BRANCH_TABS: { key: AthleteBranch; label: string; emoji: string }[] = [
 ];
 
 export default function SporcularScreen() {
-  const router = useRouter();
-  const colorScheme = useColorScheme() ?? "light";
-  const theme = Colors[colorScheme];
+  const { theme, brand } = useAppTheme();
 
   const [selectedBranch, setSelectedBranch] = useState<AthleteBranch>("Futbol");
   const [selectedCategory, setSelectedCategory] = useState<string>("Tümü");
   const [searchQuery, setSearchQuery] = useState("");
-  const [athletes, setAthletes] = useState<Athlete[]>(() =>
-    getFallbackAthletesByBranch("Futbol"),
-  );
-  const [loading, setLoading] = useState(false);
   const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    setAthletes(getFallbackAthletesByBranch(selectedBranch));
-    setSelectedCategory("Tümü");
-    let active = true;
-    fetchAthletes(selectedBranch).then((data) => {
-      if (active && data.length > 0) {
-        setAthletes(data);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [selectedBranch]);
+  const {
+    data: athletes = [],
+    isLoading,
+    refetch,
+  } = useAthletesQuery(selectedBranch);
+
+  const loading = isLoading && athletes.length === 0;
+  const isLiveRosterBranch = LIVE_ROSTER_BRANCHES.has(selectedBranch);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetch]);
 
   const categoryFilters = useMemo(() => {
     if (selectedBranch === "Futbol" || selectedBranch === "Kadın Futbol") {
@@ -83,13 +82,20 @@ export default function SporcularScreen() {
       <Stack.Screen
         options={{
           title: "Tüm Branş Kadroları",
-          headerStyle: { backgroundColor: Colors.brand.navy },
-          headerTintColor: Colors.brand.yellow,
+          headerStyle: { backgroundColor: brand.navy },
+          headerTintColor: brand.yellow,
           headerBackTitle: "Geri",
         }}
       />
+
       <View
-        style={[styles.branchTabs, { backgroundColor: theme.cardBackground }]}
+        style={[
+          styles.branchTabs,
+          {
+            backgroundColor: theme.cardBackground,
+            borderBottomColor: theme.border,
+          },
+        ]}
       >
         <FlatList
           horizontal
@@ -104,9 +110,13 @@ export default function SporcularScreen() {
                 style={[
                   styles.branchTabButton,
                   { paddingHorizontal: 14 },
-                  isActive && { borderBottomColor: Colors.brand.yellow },
+                  isActive && { borderBottomColor: brand.yellow },
                 ]}
-                onPress={() => setSelectedBranch(item.key)}
+                onPress={() => {
+                  triggerSelectionHaptic();
+                  setSelectedBranch(item.key);
+                  setSelectedCategory("Tümü");
+                }}
               >
                 <Text style={{ fontSize: 15, marginRight: 5 }}>
                   {item.emoji}
@@ -115,7 +125,7 @@ export default function SporcularScreen() {
                   style={[
                     styles.branchTabText,
                     {
-                      color: isActive ? Colors.brand.navy : theme.secondaryText,
+                      color: isActive ? theme.accent : theme.secondaryText,
                     },
                     isActive && styles.branchTabTextActive,
                   ]}
@@ -127,10 +137,14 @@ export default function SporcularScreen() {
           }}
         />
       </View>
+
       <View
         style={[
           styles.searchContainer,
-          { backgroundColor: theme.cardBackground },
+          {
+            backgroundColor: theme.cardBackground,
+            borderColor: theme.border,
+          },
         ]}
       >
         <Ionicons
@@ -157,6 +171,22 @@ export default function SporcularScreen() {
         )}
       </View>
 
+      <View style={styles.sourceMetaRow}>
+        <View
+          style={[
+            styles.sourceBadge,
+            { backgroundColor: theme.badgeBg, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.sourceBadgeText, { color: theme.badgeText }]}>
+            {isLiveRosterBranch ? "● Canlı Kaynak" : "📋 Sezon Listesi"}
+          </Text>
+        </View>
+        <Text style={[styles.countText, { color: theme.secondaryText }]}>
+          {filteredAthletes.length} sporcu
+        </Text>
+      </View>
+
       <View style={styles.categoryFilterRow}>
         <FlatList
           horizontal
@@ -172,19 +202,20 @@ export default function SporcularScreen() {
                   styles.categoryPill,
                   {
                     backgroundColor: isActive
-                      ? Colors.brand.navy
+                      ? brand.navy
                       : theme.cardBackground,
-                    borderColor: isActive
-                      ? Colors.brand.navy
-                      : theme.placeholder,
+                    borderColor: isActive ? brand.yellow : theme.border,
                   },
                 ]}
-                onPress={() => setSelectedCategory(item)}
+                onPress={() => {
+                  triggerSelectionHaptic();
+                  setSelectedCategory(item);
+                }}
               >
                 <Text
                   style={[
                     styles.categoryPillText,
-                    { color: isActive ? Colors.brand.yellow : theme.text },
+                    { color: isActive ? brand.yellow : theme.text },
                   ]}
                 >
                   {item}
@@ -194,12 +225,13 @@ export default function SporcularScreen() {
           }}
         />
       </View>
+
       {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.brand.navy} />
-          <Text style={[styles.loadingText, { color: theme.secondaryText }]}>
-            {selectedBranch} kadrosu yükleniyor...
-          </Text>
+        <View style={styles.listContent}>
+          <AthleteCardSkeleton />
+          <AthleteCardSkeleton />
+          <AthleteCardSkeleton />
+          <AthleteCardSkeleton />
         </View>
       ) : (
         <FlatList
@@ -207,11 +239,22 @@ export default function SporcularScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.accent}
+              colors={[brand.navy, brand.yellow]}
+            />
+          }
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[
                 styles.athleteCard,
-                { backgroundColor: theme.cardBackground },
+                {
+                  backgroundColor: theme.cardBackground,
+                  borderColor: theme.border,
+                },
               ]}
               onPress={() => setSelectedAthlete(item)}
               activeOpacity={0.75}
@@ -219,12 +262,19 @@ export default function SporcularScreen() {
               {item.image ? (
                 <Image
                   source={{ uri: item.image }}
-                  style={styles.athleteImage}
+                  style={[styles.athleteImage, { borderColor: brand.yellow }]}
                   contentFit="cover"
                 />
               ) : (
-                <View style={styles.numberBadge}>
-                  <Text style={styles.numberText}>{item.number}</Text>
+                <View
+                  style={[
+                    styles.numberBadge,
+                    { backgroundColor: brand.navy, borderColor: brand.yellow },
+                  ]}
+                >
+                  <Text style={[styles.numberText, { color: brand.yellow }]}>
+                    {item.number}
+                  </Text>
                 </View>
               )}
               <View style={styles.athleteInfo}>
@@ -235,8 +285,12 @@ export default function SporcularScreen() {
                   {item.name}
                 </Text>
                 <View style={styles.athleteMetaRow}>
-                  <View style={styles.posBadge}>
-                    <Text style={styles.posText}>{item.position}</Text>
+                  <View
+                    style={[styles.posBadge, { backgroundColor: theme.badgeBg }]}
+                  >
+                    <Text style={[styles.posText, { color: theme.badgeText }]}>
+                      {item.position}
+                    </Text>
                   </View>
                   {item.country && (
                     <Text
@@ -267,6 +321,7 @@ export default function SporcularScreen() {
           }
         />
       )}
+
       <Modal
         visible={!!selectedAthlete}
         transparent
@@ -283,8 +338,15 @@ export default function SporcularScreen() {
             {selectedAthlete && (
               <>
                 <View style={styles.modalHeader}>
-                  <View style={styles.modalNumberBadge}>
-                    <Text style={styles.modalNumberText}>
+                  <View
+                    style={[
+                      styles.modalNumberBadge,
+                      { backgroundColor: brand.navy },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.modalNumberText, { color: brand.yellow }]}
+                    >
                       #{selectedAthlete.number}
                     </Text>
                   </View>
@@ -296,7 +358,7 @@ export default function SporcularScreen() {
                 {selectedAthlete.image ? (
                   <Image
                     source={{ uri: selectedAthlete.image }}
-                    style={styles.modalImage}
+                    style={[styles.modalImage, { borderColor: brand.yellow }]}
                     contentFit="cover"
                   />
                 ) : null}
@@ -306,7 +368,12 @@ export default function SporcularScreen() {
                 </Text>
 
                 <View style={styles.modalDetailsList}>
-                  <View style={styles.modalDetailRow}>
+                  <View
+                    style={[
+                      styles.modalDetailRow,
+                      { borderBottomColor: theme.divider },
+                    ]}
+                  >
                     <Text
                       style={[
                         styles.modalDetailLabel,
@@ -321,7 +388,12 @@ export default function SporcularScreen() {
                       {selectedAthlete.branch}
                     </Text>
                   </View>
-                  <View style={styles.modalDetailRow}>
+                  <View
+                    style={[
+                      styles.modalDetailRow,
+                      { borderBottomColor: theme.divider },
+                    ]}
+                  >
                     <Text
                       style={[
                         styles.modalDetailLabel,
@@ -337,7 +409,12 @@ export default function SporcularScreen() {
                     </Text>
                   </View>
                   {selectedAthlete.country && (
-                    <View style={styles.modalDetailRow}>
+                    <View
+                      style={[
+                        styles.modalDetailRow,
+                        { borderBottomColor: theme.divider },
+                      ]}
+                    >
                       <Text
                         style={[
                           styles.modalDetailLabel,
@@ -353,7 +430,12 @@ export default function SporcularScreen() {
                       </Text>
                     </View>
                   )}
-                  <View style={styles.modalDetailRow}>
+                  <View
+                    style={[
+                      styles.modalDetailRow,
+                      { borderBottomColor: theme.divider },
+                    ]}
+                  >
                     <Text
                       style={[
                         styles.modalDetailLabel,
@@ -365,7 +447,7 @@ export default function SporcularScreen() {
                     <Text
                       style={[
                         styles.modalDetailValue,
-                        { color: Colors.brand.navy, fontWeight: "bold" },
+                        { color: theme.accent, fontWeight: "bold" },
                       ]}
                     >
                       Fenerbahçe Spor Kulübü
@@ -374,10 +456,14 @@ export default function SporcularScreen() {
                 </View>
 
                 <TouchableOpacity
-                  style={styles.modalCloseBtn}
+                  style={[styles.modalCloseBtn, { backgroundColor: brand.navy }]}
                   onPress={() => setSelectedAthlete(null)}
                 >
-                  <Text style={styles.modalCloseBtnText}>Kapat</Text>
+                  <Text
+                    style={[styles.modalCloseBtnText, { color: brand.yellow }]}
+                  >
+                    Kapat
+                  </Text>
                 </TouchableOpacity>
               </>
             )}
@@ -395,7 +481,6 @@ const styles = StyleSheet.create({
   branchTabs: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: "#EEEEEE",
   },
   branchTabButton: {
     flex: 1,
@@ -418,17 +503,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginHorizontal: 16,
     marginTop: 12,
-    marginBottom: 4,
+    marginBottom: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#E0E0E0",
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
     paddingVertical: 2,
+  },
+  sourceMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    marginBottom: 2,
+  },
+  sourceBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  sourceBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  countText: {
+    fontSize: 11,
+    fontWeight: "600",
   },
   categoryFilterRow: {
     marginBottom: 4,
@@ -453,23 +558,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    borderRadius: Radius.md,
+    borderWidth: 1,
   },
   numberBadge: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: Colors.brand.navy,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 14,
     borderWidth: 1.5,
-    borderColor: Colors.brand.yellow,
   },
   athleteImage: {
     width: 38,
@@ -478,7 +577,6 @@ const styles = StyleSheet.create({
     marginRight: 14,
     backgroundColor: "rgba(254, 209, 0, 0.2)",
     borderWidth: 1.5,
-    borderColor: Colors.brand.yellow,
   },
   modalImage: {
     width: 80,
@@ -487,11 +585,8 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: Colors.brand.yellow,
-    backgroundColor: "rgba(7, 33, 70, 0.05)",
   },
   numberText: {
-    color: Colors.brand.yellow,
     fontSize: 15,
     fontWeight: "bold",
   },
@@ -509,13 +604,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   posBadge: {
-    backgroundColor: "rgba(7, 33, 70, 0.08)",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
   },
   posText: {
-    color: Colors.brand.navy,
     fontSize: 11,
     fontWeight: "bold",
   },
@@ -527,10 +620,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 40,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 13,
   },
   modalOverlay: {
     flex: 1,
@@ -556,13 +645,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   modalNumberBadge: {
-    backgroundColor: Colors.brand.navy,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 8,
   },
   modalNumberText: {
-    color: Colors.brand.yellow,
     fontSize: 14,
     fontWeight: "bold",
   },
@@ -580,7 +667,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 4,
     borderBottomWidth: 0.5,
-    borderBottomColor: "#EEEEEE",
   },
   modalDetailLabel: {
     fontSize: 13,
@@ -590,13 +676,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   modalCloseBtn: {
-    backgroundColor: Colors.brand.navy,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: "center",
   },
   modalCloseBtnText: {
-    color: Colors.brand.yellow,
     fontSize: 14,
     fontWeight: "bold",
   },

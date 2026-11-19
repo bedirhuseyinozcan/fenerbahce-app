@@ -15,6 +15,7 @@ async function fetchWithTimeout(
     clearTimeout(timer);
   }
 }
+
 export async function safeFetch(
   url: string,
   init?: RequestInit,
@@ -29,7 +30,7 @@ export async function safeFetch(
   for (const targetUrl of candidates) {
     try {
       const res = await fetchWithTimeout(targetUrl, init, timeoutMs);
-      return res.ok ? res : null;
+      if (res.ok) return res;
     } catch {}
   }
 
@@ -52,4 +53,18 @@ export async function safeFetch(
   }
 
   return null;
+}
+
+export async function safeFetchJson<T = unknown>(
+  url: string,
+  init?: RequestInit,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): Promise<T | null> {
+  const res = await safeFetch(url, init, timeoutMs);
+  if (!res) return null;
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
 }

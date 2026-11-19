@@ -1,12 +1,12 @@
-import Colors from "@/constants/Colors";
+import { useAppTheme } from "@/context/ThemeContext";
 import { Lineup, Player } from "@/types";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useState } from "react";
 import {
-  Dimensions,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -17,16 +17,16 @@ interface SoccerPitchProps {
   branch?: string;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const PITCH_WIDTH = SCREEN_WIDTH - 32;
 const PITCH_HEIGHT = 440;
 
 export default function SoccerPitch({
   lineup,
-  teamName,
   isFenerbahce = true,
   branch = "Futbol",
 }: SoccerPitchProps) {
+  const { width } = useWindowDimensions();
+  const { theme, brand } = useAppTheme();
+  const pitchWidth = Math.min(Math.max(width - 32, 260), 460);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
   const isBasketball = branch === "Basketbol";
@@ -34,9 +34,14 @@ export default function SoccerPitch({
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.pitchHeader}>
-        <View style={styles.formationBadge}>
-          <Text style={styles.formationText}>
+      <View style={[styles.pitchHeader, { width: pitchWidth }]}>
+        <View
+          style={[
+            styles.formationBadge,
+            { backgroundColor: brand.navy, borderColor: brand.yellow },
+          ]}
+        >
+          <Text style={[styles.formationText, { color: brand.yellow }]}>
             {isBasketball
               ? "İlk 5"
               : isVolleyball
@@ -44,15 +49,22 @@ export default function SoccerPitch({
                 : `Formasyon: ${lineup.formation}`}
           </Text>
         </View>
-        <Text style={styles.coachText}>
-          {isBasketball || isVolleyball ? "Baş Antrenör: " : "T.D.: "}
-          {lineup.coach}
-        </Text>
+        {lineup.coach ? (
+          <Text style={[styles.coachText, { color: theme.secondaryText }]}>
+            {isBasketball || isVolleyball ? "Baş Antrenör: " : "T.D.: "}
+            {lineup.coach}
+          </Text>
+        ) : null}
       </View>
 
       {selectedPlayer && (
-        <View style={styles.selectedBanner}>
-          <Text style={styles.selectedBannerText}>
+        <View
+          style={[
+            styles.selectedBanner,
+            { width: pitchWidth, backgroundColor: "rgba(7, 33, 70, 0.95)" },
+          ]}
+        >
+          <Text style={[styles.selectedBannerText, { color: brand.yellow }]}>
             #{selectedPlayer.number} {selectedPlayer.name} (
             {selectedPlayer.position})
             {typeof selectedPlayer.goals === "number" &&
@@ -67,7 +79,12 @@ export default function SoccerPitch({
         </View>
       )}
 
-      <View style={styles.pitchContainer}>
+      <View
+        style={[
+          styles.pitchContainer,
+          { width: pitchWidth, height: PITCH_HEIGHT },
+        ]}
+      >
         <View style={styles.stripesContainer}>
           {[...Array(6)].map((_, i) => (
             <View
@@ -152,7 +169,6 @@ export default function SoccerPitch({
                   },
                 ]}
               >
-                {/* Gol (Top) ve Asist (Krampon) Rozetleri */}
                 {hasBadges ? (
                   <View style={styles.eventBadgesRow}>
                     {hasGoals ? (
@@ -170,7 +186,7 @@ export default function SoccerPitch({
                         <MaterialCommunityIcons
                           name="shoe-cleat"
                           size={11}
-                          color="#072146"
+                          color={brand.navy}
                         />
                         {player.assists! > 1 ? (
                           <Text style={styles.badgeCountText}>
@@ -188,14 +204,12 @@ export default function SoccerPitch({
                     {
                       backgroundColor: isFenerbahce
                         ? isSelected
-                          ? Colors.brand.yellow
-                          : Colors.brand.navy
+                          ? brand.yellow
+                          : brand.navy
                         : isSelected
                           ? "#E53935"
                           : "#37474F",
-                      borderColor: isFenerbahce
-                        ? Colors.brand.yellow
-                        : "#FFFFFF",
+                      borderColor: isFenerbahce ? brand.yellow : "#FFFFFF",
                       borderWidth: isSelected ? 2.5 : 1.5,
                     },
                   ]}
@@ -206,8 +220,8 @@ export default function SoccerPitch({
                       {
                         color: isFenerbahce
                           ? isSelected
-                            ? Colors.brand.navy
-                            : Colors.brand.yellow
+                            ? brand.navy
+                            : brand.yellow
                           : "#FFFFFF",
                       },
                     ]}
@@ -236,7 +250,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   pitchHeader: {
-    width: PITCH_WIDTH,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -244,26 +257,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   formationBadge: {
-    backgroundColor: Colors.brand.navy,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: Colors.brand.yellow,
   },
   formationText: {
-    color: Colors.brand.yellow,
     fontSize: 12,
     fontWeight: "bold",
   },
   coachText: {
-    color: "#666",
     fontSize: 12,
     fontWeight: "600",
   },
   selectedBanner: {
-    width: PITCH_WIDTH,
-    backgroundColor: "rgba(7, 33, 70, 0.95)",
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 6,
@@ -271,13 +278,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   selectedBannerText: {
-    color: Colors.brand.yellow,
     fontSize: 13,
     fontWeight: "bold",
   },
   pitchContainer: {
-    width: PITCH_WIDTH,
-    height: PITCH_HEIGHT,
     borderRadius: 12,
     overflow: "hidden",
     position: "relative",

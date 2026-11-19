@@ -1,11 +1,11 @@
 import {
-  fallbackCuratedFixtures,
   fetchFixtures,
   formatIstanbulDate,
   formatIstanbulTime,
   getCachedFixturesSync,
   getCachedMatchByIdSync,
   getEuroLeagueSeasonCode,
+  resolveMatchStatus,
 } from "@/services/fixtureService";
 import {
   EventType,
@@ -560,398 +560,6 @@ function parseAndTranslateEspnEvent(
   return null;
 }
 
-export const fallbackFootballLineup: Lineup = {
-  formation: "4-2-3-1",
-  coach: "Emre Belözoğlu",
-  isConfirmed: true,
-  startingXI: [
-    {
-      id: "fb-31",
-      number: 31,
-      name: "Ederson",
-      position: "KL",
-      gridPosition: { x: 50, y: 88 },
-    },
-    {
-      id: "fb-27",
-      number: 27,
-      name: "Nélson Semedo",
-      position: "DF",
-      gridPosition: { x: 86, y: 68 },
-    },
-    {
-      id: "fb-37",
-      number: 37,
-      name: "Milan Škriniar",
-      position: "DF",
-      gridPosition: { x: 62, y: 72 },
-    },
-    {
-      id: "fb-15",
-      number: 15,
-      name: "Nathan Aké",
-      position: "DF",
-      gridPosition: { x: 38, y: 72 },
-    },
-    {
-      id: "fb-3",
-      number: 3,
-      name: "Archie Brown",
-      position: "DF",
-      gridPosition: { x: 14, y: 68 },
-    },
-    {
-      id: "fb-91",
-      number: 91,
-      name: "N'Golo Kanté",
-      position: "OS",
-      gridPosition: { x: 35, y: 50 },
-    },
-    {
-      id: "fb-6",
-      number: 6,
-      name: "Mattéo Guendouzi",
-      position: "OS",
-      gridPosition: { x: 65, y: 50 },
-    },
-    {
-      id: "fb-11",
-      number: 11,
-      name: "Mason Greenwood",
-      position: "FV",
-      gridPosition: { x: 84, y: 32 },
-    },
-    {
-      id: "fb-10",
-      number: 10,
-      name: "Marco Asensio",
-      position: "OS",
-      gridPosition: { x: 50, y: 32 },
-    },
-    {
-      id: "fb-7",
-      number: 7,
-      name: "Kerem Aktürkoğlu",
-      position: "FV",
-      gridPosition: { x: 16, y: 32 },
-    },
-    {
-      id: "fb-9",
-      number: 9,
-      name: "Romelu Lukaku",
-      position: "FV",
-      gridPosition: { x: 50, y: 14 },
-    },
-  ],
-  substitutes: [
-    { id: "fs-1", number: 34, name: "Mert Günok", position: "KL" },
-    { id: "fs-2", number: 4, name: "Çağlar Söyüncü", position: "DF" },
-    { id: "fs-3", number: 18, name: "Mert Müldür", position: "DF" },
-    { id: "fs-4", number: 24, name: "Jayden Oosterwolde", position: "DF" },
-    { id: "fs-5", number: 5, name: "İsmail Yüksek", position: "OS" },
-    { id: "fs-6", number: 8, name: "Mert Hakan Yandaş", position: "OS" },
-    { id: "fs-7", number: 17, name: "İrfan Can Kahveci", position: "OS" },
-    { id: "fs-8", number: 70, name: "Oğuz Aydın", position: "OS" },
-    { id: "fs-9", number: 19, name: "Vedat Muriqi", position: "FV" },
-  ],
-};
-
-export const basketballFBLineup: Lineup = {
-  formation: "İlk 5",
-  coach: "Šarūnas Jasikevičius",
-  startingXI: [
-    {
-      id: "bb-2",
-      number: 2,
-      name: "Wade Baldwin IV",
-      position: "G",
-      gridPosition: { x: 50, y: 80 },
-    },
-    {
-      id: "bb-0",
-      number: 0,
-      name: "Shane Larkin",
-      position: "G",
-      gridPosition: { x: 82, y: 60 },
-    },
-    {
-      id: "bb-23",
-      number: 23,
-      name: "Marko Gudurić",
-      position: "G/F",
-      gridPosition: { x: 18, y: 60 },
-    },
-    {
-      id: "bb-4",
-      number: 4,
-      name: "Nicolò Melli",
-      position: "F/P",
-      gridPosition: { x: 30, y: 32 },
-    },
-    {
-      id: "bb-5",
-      number: 5,
-      name: "Sertaç Şanlı",
-      position: "P",
-      gridPosition: { x: 70, y: 32 },
-    },
-  ],
-  substitutes: [
-    { id: "bs-1", number: 10, name: "Melih Mahmutoğlu", position: "G" },
-    { id: "bs-2", number: 8, name: "Talen Horton-Tucker", position: "G" },
-    { id: "bs-3", number: 9, name: "Johnny Juzang", position: "G" },
-    { id: "bs-4", number: 11, name: "Trent Forrest", position: "G" },
-    { id: "bs-5", number: 21, name: "Will Clyburn", position: "F" },
-    { id: "bs-6", number: 1, name: "Marcus Bingham Jr.", position: "P" },
-  ],
-};
-
-export const volleyballFBLineup: Lineup = {
-  formation: "İlk 6",
-  coach: "Marco Fenoglio",
-  startingXI: [
-    {
-      id: "vb-1",
-      number: 18,
-      name: "Bojana Drča",
-      position: "Pasör",
-      gridPosition: { x: 50, y: 82 },
-    },
-    {
-      id: "vb-2",
-      number: 44,
-      name: "Melissa Vargas",
-      position: "Pasör Çaprazı",
-      gridPosition: { x: 80, y: 62 },
-    },
-    {
-      id: "vb-3",
-      number: 10,
-      name: "Arina Fedorovtseva",
-      position: "Smaçör",
-      gridPosition: { x: 20, y: 62 },
-    },
-    {
-      id: "vb-4",
-      number: 14,
-      name: "Eda Erdem",
-      position: "Orta Oyuncu",
-      gridPosition: { x: 50, y: 40 },
-    },
-    {
-      id: "vb-5",
-      number: 12,
-      name: "Ana Cristina",
-      position: "Smaçör",
-      gridPosition: { x: 80, y: 22 },
-    },
-    {
-      id: "vb-6",
-      number: 15,
-      name: "Aslı Kalaç",
-      position: "Orta Oyuncu",
-      gridPosition: { x: 20, y: 22 },
-    },
-  ],
-  substitutes: [
-    { id: "vs-1", number: 1, name: "Gizem Örge", position: "Libero" },
-    { id: "vs-2", number: 7, name: "Hande Baladın", position: "Smaçör" },
-    { id: "vs-3", number: 8, name: "Alessia Orro", position: "Pasör" },
-  ],
-};
-
-function generateOpponentLineup(branch: string, name: string): Lineup {
-  if (branch === "Basketbol") {
-    return {
-      formation: "İlk 5",
-      coach: "Baş Antrenör",
-      startingXI: [
-        {
-          id: "ob-1",
-          number: 1,
-          name: "Oyun Kurucu",
-          position: "G",
-          gridPosition: { x: 50, y: 80 },
-        },
-        {
-          id: "ob-2",
-          number: 7,
-          name: "Şutör Gard",
-          position: "G",
-          gridPosition: { x: 82, y: 60 },
-        },
-        {
-          id: "ob-3",
-          number: 11,
-          name: "Kısa Forvet",
-          position: "F",
-          gridPosition: { x: 18, y: 60 },
-        },
-        {
-          id: "ob-4",
-          number: 15,
-          name: "Uzun Forvet",
-          position: "F",
-          gridPosition: { x: 30, y: 32 },
-        },
-        {
-          id: "ob-5",
-          number: 33,
-          name: "Pivot",
-          position: "P",
-          gridPosition: { x: 70, y: 32 },
-        },
-      ],
-      substitutes: [
-        { id: "obs-1", number: 4, name: "Yedek Gard", position: "G" },
-        { id: "obs-2", number: 8, name: "Yedek Forvet", position: "F" },
-      ],
-    };
-  }
-  if (branch === "Voleybol") {
-    return {
-      formation: "İlk 6",
-      coach: "Baş Antrenör",
-      startingXI: [
-        {
-          id: "ov-1",
-          number: 1,
-          name: "Pasör",
-          position: "Pasör",
-          gridPosition: { x: 50, y: 82 },
-        },
-        {
-          id: "ov-2",
-          number: 9,
-          name: "P. Çaprazı",
-          position: "Pasör Çaprazı",
-          gridPosition: { x: 80, y: 62 },
-        },
-        {
-          id: "ov-3",
-          number: 7,
-          name: "Smaçör 1",
-          position: "Smaçör",
-          gridPosition: { x: 20, y: 62 },
-        },
-        {
-          id: "ov-4",
-          number: 14,
-          name: "Orta 1",
-          position: "Orta Oyuncu",
-          gridPosition: { x: 50, y: 40 },
-        },
-        {
-          id: "ov-5",
-          number: 11,
-          name: "Smaçör 2",
-          position: "Smaçör",
-          gridPosition: { x: 80, y: 22 },
-        },
-        {
-          id: "ov-6",
-          number: 5,
-          name: "Orta 2",
-          position: "Orta Oyuncu",
-          gridPosition: { x: 20, y: 22 },
-        },
-      ],
-      substitutes: [
-        { id: "ovs-1", number: 2, name: "Libero", position: "Libero" },
-      ],
-    };
-  }
-  return {
-    formation: "4-3-3",
-    coach: "Teknik Direktör",
-    startingXI: [
-      {
-        id: "of-1",
-        number: 1,
-        name: "Kaleci",
-        position: "KL",
-        gridPosition: { x: 50, y: 88 },
-      },
-      {
-        id: "of-2",
-        number: 2,
-        name: "Sağ Bek",
-        position: "DF",
-        gridPosition: { x: 86, y: 68 },
-      },
-      {
-        id: "of-3",
-        number: 4,
-        name: "Stoper",
-        position: "DF",
-        gridPosition: { x: 62, y: 72 },
-      },
-      {
-        id: "of-4",
-        number: 5,
-        name: "Stoper",
-        position: "DF",
-        gridPosition: { x: 38, y: 72 },
-      },
-      {
-        id: "of-5",
-        number: 3,
-        name: "Sol Bek",
-        position: "DF",
-        gridPosition: { x: 14, y: 68 },
-      },
-      {
-        id: "of-6",
-        number: 6,
-        name: "Orta Saha",
-        position: "OS",
-        gridPosition: { x: 50, y: 55 },
-      },
-      {
-        id: "of-7",
-        number: 8,
-        name: "Orta Saha",
-        position: "OS",
-        gridPosition: { x: 65, y: 45 },
-      },
-      {
-        id: "of-8",
-        number: 10,
-        name: "Orta Saha",
-        position: "OS",
-        gridPosition: { x: 35, y: 45 },
-      },
-      {
-        id: "of-9",
-        number: 7,
-        name: "Sağ Kanat",
-        position: "FV",
-        gridPosition: { x: 84, y: 25 },
-      },
-      {
-        id: "of-10",
-        number: 9,
-        name: "Santrafor",
-        position: "FV",
-        gridPosition: { x: 50, y: 15 },
-      },
-      {
-        id: "of-11",
-        number: 11,
-        name: "Sol Kanat",
-        position: "FV",
-        gridPosition: { x: 16, y: 25 },
-      },
-    ],
-    substitutes: [
-      { id: "ofs-1", number: 12, name: "Yedek Kaleci", position: "KL" },
-      { id: "ofs-2", number: 14, name: "Yedek Defans", position: "DF" },
-      { id: "ofs-3", number: 17, name: "Yedek Orta Saha", position: "OS" },
-      { id: "ofs-4", number: 19, name: "Yedek Forvet", position: "FV" },
-    ],
-  };
-}
-
 function extractScore(
   compParticipant: any,
   cachedScore?: string | null,
@@ -975,16 +583,10 @@ const matchDetailCache = new Map<
 >();
 const MATCH_DETAIL_TTL_MS = 15 * 1000;
 
-function getUnconfirmedLineup(branch: string, isTeamFB: boolean): Lineup {
-  let coach = "Teknik Direktör";
-  if (isTeamFB) {
-    if (branch === "Futbol") coach = "Emre Belözoğlu";
-    else if (branch === "Basketbol") coach = "Šarūnas Jasikevičius";
-    else if (branch === "Voleybol") coach = "Marco Fenoglio";
-  }
+function getUnconfirmedLineup(): Lineup {
   return {
     formation: "Belirlenmedi",
-    coach,
+    coach: "",
     startingXI: [],
     substitutes: [],
     isConfirmed: false,
@@ -997,29 +599,15 @@ export function getInstantMatchPreview(
   const cachedDetail = matchDetailCache.get(matchId);
   if (cachedDetail) return cachedDetail.data;
 
-  const match =
-    getCachedMatchByIdSync(matchId) ||
-    fallbackCuratedFixtures.find((f) => f.id === matchId);
+  const match = getCachedMatchByIdSync(matchId);
   if (!match) return null;
 
-  const isFbHome = match.homeTeam.toLowerCase().includes("fenerbah");
-  const isLive = match.status === "live";
-  const isFinished =
-    match.status === "finished" ||
-    (!isLive &&
-      match.homeScore !== null &&
-      match.homeScore !== undefined &&
-      match.homeScore !== "" &&
-      match.awayScore !== null &&
-      match.awayScore !== undefined &&
-      match.awayScore !== "");
-
-  const homeLineup = getUnconfirmedLineup(match.branch, isFbHome);
-  const awayLineup = getUnconfirmedLineup(match.branch, !isFbHome);
+  const homeLineup = getUnconfirmedLineup();
+  const awayLineup = getUnconfirmedLineup();
 
   return {
     ...match,
-    status: isLive ? "live" : isFinished ? "finished" : "upcoming",
+    status: resolveMatchStatus(match),
     events: [],
     homeLineup,
     awayLineup,
@@ -1029,9 +617,11 @@ export function getInstantMatchPreview(
 
 export const getMatchDetail = async (
   matchId: string,
+  forceRefresh: boolean = false,
 ): Promise<MatchDetailData> => {
   const existingDetail = matchDetailCache.get(matchId);
   if (
+    !forceRefresh &&
     existingDetail &&
     Date.now() - existingDetail.ts < MATCH_DETAIL_TTL_MS &&
     existingDetail.data.status !== "live"
@@ -1039,8 +629,8 @@ export const getMatchDetail = async (
     return existingDetail.data;
   }
 
-  let fixturesList = getCachedFixturesSync() || fallbackCuratedFixtures;
-  let cachedMatch: any = getCachedMatchByIdSync(matchId);
+  let fixturesList = getCachedFixturesSync() || [];
+  let cachedMatch: MatchData | null = getCachedMatchByIdSync(matchId);
   if (!cachedMatch && !getCachedFixturesSync()) {
     try {
       fixturesList = await fetchFixtures();
@@ -1060,9 +650,9 @@ export const getMatchDetail = async (
 
         const responses = await Promise.all(
           espnLeagues.map((slug) =>
-            fetch(
+            safeFetch(
               `https://site.api.espn.com/apis/site/v2/sports/soccer/${slug}/summary?event=${matchId}`,
-            ).catch(() => null),
+            ),
           ),
         );
         const res = responses.find((r) => r && r.ok) || null;
@@ -1166,11 +756,10 @@ export const getMatchDetail = async (
                   position: mapPositionAbbr(p.position?.displayName),
                 }));
 
-                const apiCoachName = isTeamFB
-                  ? "Emre Belözoğlu"
-                  : rosterData.coach?.[0]?.displayName ||
-                    rosterData.coach?.[0]?.fullName ||
-                    "Teknik Direktör";
+                const apiCoachName =
+                  rosterData.coach?.[0]?.displayName ||
+                  rosterData.coach?.[0]?.fullName ||
+                  "";
 
                 if (startingXI.length > 0) {
                   return {
@@ -1183,7 +772,7 @@ export const getMatchDetail = async (
                 }
               }
 
-              return getUnconfirmedLineup("Futbol", isTeamFB);
+              return getUnconfirmedLineup();
             };
 
             const homeTeamName = isFBHome
@@ -1409,6 +998,7 @@ export const getMatchDetail = async (
               awayScore,
               date: dateStr,
               time: timeStr !== "Invalid Date" ? timeStr : "20:00",
+              rawDate: comp.date || cachedMatch?.rawDate,
               stadium:
                 d.gameInfo?.venue?.fullName ||
                 comp.venue?.fullName ||
@@ -1565,27 +1155,14 @@ export const getMatchDetail = async (
               awayScore,
               date: formatIstanbulDate(dateObj),
               time: formatIstanbulTime(dateObj),
+              rawDate: game.date || cachedMatch?.rawDate,
               stadium,
               status: isLive ? "live" : isCompleted ? "finished" : "upcoming",
               liveClock: isLive ? "CANLI" : undefined,
               quarterScores: qScores.length > 0 ? qScores : undefined,
               events: [],
-              homeLineup: hasScore
-                ? isFBLocal
-                  ? { ...basketballFBLineup, isConfirmed: true }
-                  : {
-                      ...generateOpponentLineup("Basketbol", homeTeam),
-                      isConfirmed: true,
-                    }
-                : getUnconfirmedLineup("Basketbol", isFBLocal),
-              awayLineup: hasScore
-                ? isFBLocal
-                  ? {
-                      ...generateOpponentLineup("Basketbol", awayTeam),
-                      isConfirmed: true,
-                    }
-                  : { ...basketballFBLineup, isConfirmed: true }
-                : getUnconfirmedLineup("Basketbol", !isFBLocal),
+              homeLineup: getUnconfirmedLineup(),
+              awayLineup: getUnconfirmedLineup(),
               stats: realBasketballStats,
             };
             matchDetailCache.set(matchId, { data: euroDetail, ts: Date.now() });
@@ -1619,40 +1196,13 @@ export const getMatchDetail = async (
       fixturesList.find((f) => f.id === matchId) ||
       emptyFallbackMatch;
     const isFbHome = match.homeTeam.toLowerCase().includes("fenerbah");
-    const isLive = match.status === "live";
-    const isFinished =
-      match.status === "finished" ||
-      (!isLive &&
-        match.homeScore !== null &&
-        match.homeScore !== undefined &&
-        match.homeScore !== "" &&
-        match.awayScore !== null &&
-        match.awayScore !== undefined &&
-        match.awayScore !== "");
+    const resolvedStatus = resolveMatchStatus(match);
 
     const stadium =
       match.stadium ||
       (isFbHome
         ? "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi"
         : `${match.homeTeam} Stadyumu`);
-
-    let fbLineup = fallbackFootballLineup;
-    if (match.branch === "Basketbol") fbLineup = basketballFBLineup;
-    else if (match.branch === "Voleybol") fbLineup = volleyballFBLineup;
-
-    const oppLineup = generateOpponentLineup(
-      match.branch,
-      isFbHome ? match.awayTeam : match.homeTeam,
-    );
-
-    const finalHomeLineup: Lineup =
-      isFinished || isLive
-        ? JSON.parse(JSON.stringify(isFbHome ? fbLineup : oppLineup))
-        : getUnconfirmedLineup(match.branch, isFbHome);
-    const finalAwayLineup: Lineup =
-      isFinished || isLive
-        ? JSON.parse(JSON.stringify(isFbHome ? oppLineup : fbLineup))
-        : getUnconfirmedLineup(match.branch, !isFbHome);
 
     return {
       id: match.id,
@@ -1667,14 +1217,15 @@ export const getMatchDetail = async (
       awayScore: match.awayScore,
       date: match.date,
       time: match.time,
+      rawDate: match.rawDate,
       stadium,
-      status: isLive ? "live" : isFinished ? "finished" : "upcoming",
+      status: resolvedStatus,
       liveClock: match.liveClock,
       referee: undefined,
       quarterScores: undefined,
       events: [],
-      homeLineup: finalHomeLineup,
-      awayLineup: finalAwayLineup,
+      homeLineup: getUnconfirmedLineup(),
+      awayLineup: getUnconfirmedLineup(),
       stats: [],
     };
   } catch {
@@ -1695,13 +1246,6 @@ export const getMatchDetail = async (
       status: "upcoming",
     };
     const isHomeFb = fbMatch.homeTeam.toLowerCase().includes("fenerbah");
-    const isFinished =
-      fbMatch.homeScore !== null &&
-      fbMatch.homeScore !== undefined &&
-      fbMatch.homeScore !== "" &&
-      fbMatch.awayScore !== null &&
-      fbMatch.awayScore !== undefined &&
-      fbMatch.awayScore !== "";
 
     const stadium =
       fbMatch.stadium ||
@@ -1722,11 +1266,13 @@ export const getMatchDetail = async (
       awayScore: fbMatch.awayScore,
       date: fbMatch.date,
       time: fbMatch.time,
+      rawDate: fbMatch.rawDate,
       stadium,
-      status: isFinished ? "finished" : "upcoming",
+      status: resolveMatchStatus(fbMatch),
+      liveClock: fbMatch.liveClock,
       events: [],
-      homeLineup: getUnconfirmedLineup(fbMatch.branch, isHomeFb),
-      awayLineup: getUnconfirmedLineup(fbMatch.branch, !isHomeFb),
+      homeLineup: getUnconfirmedLineup(),
+      awayLineup: getUnconfirmedLineup(),
       stats: [],
     };
   }

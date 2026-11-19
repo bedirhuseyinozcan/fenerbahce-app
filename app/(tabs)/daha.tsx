@@ -1,4 +1,6 @@
-import Colors from "@/constants/Colors";
+import { Radius } from "@/constants/theme";
+import { ThemeMode, useAppTheme } from "@/context/ThemeContext";
+import { useFixturesQuery } from "@/hooks/useSportsQueries";
 import {
   calculatePredictionStats,
   getNtfyTopic,
@@ -6,40 +8,46 @@ import {
   sendTestNtfyNotification,
   setNtfyTopic,
 } from "@/services/fanEngagementService";
-import { fetchFixtures } from "@/services/fixtureService";
+import { openInAppUrl } from "@/utils/browser";
+import { triggerLightHaptic, triggerSelectionHaptic } from "@/utils/haptics";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from "react-native";
 
+const THEME_OPTIONS: { key: ThemeMode; label: string; icon: string }[] = [
+  { key: "system", label: "Sistem", icon: "📱" },
+  { key: "light", label: "Aydınlık", icon: "☀️" },
+  { key: "dark", label: "Karanlık", icon: "🌙" },
+];
+
 export default function DahaFazlaScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? "light";
-  const theme = Colors[colorScheme];
+  const { theme, brand, mode, setMode } = useAppTheme();
 
+  const { data: matches = [] } = useFixturesQuery();
   const [ntfyTopic, setNtfyTopicState] = useState(getNtfyTopic());
   const [pushStatus, setPushStatus] = useState<string>("");
-  const [predStats, setPredStats] = useState({
-    totalPredictions: 0,
-    exactHits: 0,
-    correctOutcomes: 0,
-    totalPoints: 0,
-  });
+  const [refreshTick, setRefreshTick] = useState(0);
 
-  useEffect(() => {
-    fetchFixtures().then((matches) => {
-      setPredStats(calculatePredictionStats(matches));
-    });
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      setRefreshTick((t) => t + 1);
+    }, []),
+  );
+
+  const predStats = useMemo(
+    () => calculatePredictionStats(matches),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [matches, refreshTick],
+  );
 
   const handleSaveTopic = (val: string) => {
     setNtfyTopicState(val);
@@ -47,6 +55,7 @@ export default function DahaFazlaScreen() {
   };
 
   const handleTestPush = async () => {
+    triggerLightHaptic();
     setPushStatus("Gönderiliyor...");
     const ok = await sendTestNtfyNotification();
     setPushStatus(
@@ -66,7 +75,7 @@ export default function DahaFazlaScreen() {
           subtitle:
             "Futbol, Basketbol, Voleybol (Erkek & Kadın) tüm sporcularımız",
           icon: "people",
-          iconColor: Colors.brand.navy,
+          iconColor: theme.accent,
           onPress: () => router.push("/sporcular" as any),
         },
         {
@@ -82,7 +91,7 @@ export default function DahaFazlaScreen() {
           title: "Derbi Merkezi & H2H İstatistikleri",
           subtitle: "GS, BJK ve TS karşısında tüm zamanlar galibiyet üstünlüğü",
           icon: "flame",
-          iconColor: "#E53935",
+          iconColor: "#EF4444",
           onPress: () => router.push("/derbi-merkezi" as any),
         },
         {
@@ -90,7 +99,7 @@ export default function DahaFazlaScreen() {
           title: "Kulüp Haberleri",
           subtitle: "Son dakika transfer ve kulüp bültenleri",
           icon: "newspaper",
-          iconColor: "#1E88E5",
+          iconColor: "#3B82F6",
           onPress: () => router.push("/haberler" as any),
         },
       ],
@@ -103,24 +112,24 @@ export default function DahaFazlaScreen() {
           title: "Fenerium Online Mağaza",
           subtitle: "Resmi formalar, tişörtler ve lisanslı ürünler",
           icon: "bag-handle",
-          iconColor: "#E53935",
-          onPress: () => Linking.openURL("https://fenerium.com"),
+          iconColor: "#EF4444",
+          onPress: () => openInAppUrl("https://fenerium.com"),
         },
         {
           id: "fbtv",
           title: "FBTV Canlı Yayın",
           subtitle: "Kulüp televizyonunu canlı izle",
           icon: "tv",
-          iconColor: "#43A047",
-          onPress: () => Linking.openURL("https://www.fenerbahce.org/fbtv"),
+          iconColor: "#10B981",
+          onPress: () => openInAppUrl("https://www.fenerbahce.org/fbtv"),
         },
         {
           id: "tarihce",
           title: "1907'den Bugüne Tarihçe",
           subtitle: "Kulübün şanlı tarihi ve müzemiz",
           icon: "ribbon",
-          iconColor: Colors.brand.navy,
-          onPress: () => Linking.openURL("https://www.fenerbahce.org/tarihce"),
+          iconColor: theme.accent,
+          onPress: () => openInAppUrl("https://www.fenerbahce.org/tarihce"),
         },
       ],
     },
@@ -133,12 +142,17 @@ export default function DahaFazlaScreen() {
       showsVerticalScrollIndicator={false}
     >
       <TouchableOpacity
-        style={styles.featuredSquadBanner}
+        style={[
+          styles.featuredSquadBanner,
+          { backgroundColor: brand.navy, borderColor: brand.yellow },
+        ]}
         activeOpacity={0.85}
         onPress={() => router.push("/sporcular" as any)}
       >
         <View style={styles.bannerLeft}>
-          <Text style={styles.bannerTag}>6 BRANŞ • GÜNCEL KADRO</Text>
+          <Text style={[styles.bannerTag, { color: brand.yellow }]}>
+            6 BRANŞ • GÜNCEL KADRO
+          </Text>
           <Text style={styles.bannerTitle}>Tüm Branş Sporcularımız</Text>
           <Text style={styles.bannerSubtitle}>
             Futbol, Basketbol, Voleybol (Erkek & Kadın) kadrolarını keşfedin.
@@ -150,106 +164,118 @@ export default function DahaFazlaScreen() {
         </View>
       </TouchableOpacity>
 
-      {/* TARAFTAR SKOR TAHMİN LİGİ KARTI (Faz 4) */}
       <View
         style={[
           styles.cardGroup,
+          styles.sectionCard,
           {
             backgroundColor: theme.cardBackground,
-            padding: 16,
-            marginBottom: 20,
+            borderColor: theme.border,
           },
         ]}
       >
-        <Text
-          style={{
-            fontSize: 13,
-            fontWeight: "900",
-            color: Colors.brand.navy,
-            marginBottom: 8,
-          }}
-        >
-          🏆 ARKADAŞ TAHMİN LİGİ PUANIN
+        <Text style={[styles.cardHeading, { color: theme.accent }]}>
+          🎨 GÖRÜNÜM & TEMA
         </Text>
         <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            marginTop: 4,
-          }}
+          style={[
+            styles.themeSegment,
+            { backgroundColor: theme.surfaceSubtle, borderColor: theme.border },
+          ]}
         >
-          <View style={{ alignItems: "center", flex: 1 }}>
-            <Text
-              style={{
-                fontSize: 20,
-                fontWeight: "900",
-                color: Colors.brand.navy,
-              }}
-            >
+          {THEME_OPTIONS.map((opt) => {
+            const isSelected = mode === opt.key;
+            return (
+              <TouchableOpacity
+                key={opt.key}
+                onPress={() => {
+                  triggerSelectionHaptic();
+                  setMode(opt.key);
+                }}
+                style={[
+                  styles.themeSegmentBtn,
+                  isSelected && { backgroundColor: brand.navy },
+                ]}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.themeSegmentText,
+                    { color: isSelected ? brand.yellow : theme.text },
+                    isSelected && { fontWeight: "800" },
+                  ]}
+                >
+                  {opt.icon} {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      <View
+        style={[
+          styles.cardGroup,
+          styles.sectionCard,
+          {
+            backgroundColor: theme.cardBackground,
+            borderColor: theme.border,
+          },
+        ]}
+      >
+        <Text style={[styles.cardHeading, { color: theme.accent }]}>
+          🏆 ARKADAŞ TAHMİN LİGİ PUANIN
+        </Text>
+        <View style={styles.predStatsRow}>
+          <View style={styles.predStatBox}>
+            <Text style={[styles.predStatValue, { color: theme.accent }]}>
               {predStats.totalPoints}
             </Text>
-            <Text style={{ fontSize: 11, color: theme.secondaryText }}>
+            <Text style={[styles.predStatLabel, { color: theme.secondaryText }]}>
               Toplam Puan
             </Text>
           </View>
-          <View style={{ alignItems: "center", flex: 1 }}>
-            <Text style={{ fontSize: 20, fontWeight: "900", color: "#00C853" }}>
+          <View style={styles.predStatBox}>
+            <Text style={[styles.predStatValue, { color: brand.winGreen }]}>
               {predStats.exactHits}
             </Text>
-            <Text style={{ fontSize: 11, color: theme.secondaryText }}>
+            <Text style={[styles.predStatLabel, { color: theme.secondaryText }]}>
               Tam Skor (3P)
             </Text>
           </View>
-          <View style={{ alignItems: "center", flex: 1 }}>
-            <Text style={{ fontSize: 20, fontWeight: "900", color: "#FFA000" }}>
+          <View style={styles.predStatBox}>
+            <Text style={[styles.predStatValue, { color: brand.drawAmber }]}>
               {predStats.correctOutcomes}
             </Text>
-            <Text style={{ fontSize: 11, color: theme.secondaryText }}>
+            <Text style={[styles.predStatLabel, { color: theme.secondaryText }]}>
               Doğru Sonuç (1P)
             </Text>
           </View>
-          <View style={{ alignItems: "center", flex: 1 }}>
-            <Text
-              style={{ fontSize: 20, fontWeight: "900", color: theme.text }}
-            >
+          <View style={styles.predStatBox}>
+            <Text style={[styles.predStatValue, { color: theme.text }]}>
               {predStats.totalPredictions}
             </Text>
-            <Text style={{ fontSize: 11, color: theme.secondaryText }}>
+            <Text style={[styles.predStatLabel, { color: theme.secondaryText }]}>
               Tahmin
             </Text>
           </View>
         </View>
       </View>
 
-      {/* SIFIR MALİYETLİ CANLI GOL BİLDİRİM KANALI (ntfy.sh - Faz 2) */}
       <View
         style={[
           styles.cardGroup,
+          styles.sectionCard,
           {
             backgroundColor: theme.cardBackground,
-            padding: 16,
-            marginBottom: 20,
+            borderColor: theme.border,
           },
         ]}
       >
-        <Text
-          style={{
-            fontSize: 13,
-            fontWeight: "900",
-            color: Colors.brand.navy,
-            marginBottom: 4,
-          }}
-        >
+        <Text style={[styles.cardHeading, { color: theme.accent }]}>
           🔔 SIFIR MALİYETLİ CANLI MAÇ BİLDİRİMİ (ntfy)
         </Text>
-        <Text
-          style={{
-            fontSize: 12,
-            color: theme.secondaryText,
-            lineHeight: 17,
-            marginBottom: 10,
-          }}
-        >
+        <Text style={[styles.ntfyDesc, { color: theme.secondaryText }]}>
           Android ve iOS'ta mağaza veya ücretli sunucu olmadan gol ve maç sonu
           bildirimi almak için arkadaş grubunuzla ortak ntfy.sh kanal kodunuzu
           girin:
@@ -259,68 +285,35 @@ export default function DahaFazlaScreen() {
           onChangeText={handleSaveTopic}
           placeholder="fenerbahce-canli-1907"
           placeholderTextColor={theme.secondaryText}
-          style={{
-            borderWidth: 1,
-            borderColor: theme.placeholder,
-            borderRadius: 10,
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            color: theme.text,
-            fontSize: 13,
-            marginBottom: 10,
-          }}
+          style={[
+            styles.ntfyInput,
+            {
+              borderColor: theme.border,
+              backgroundColor: theme.inputBg,
+              color: theme.text,
+            },
+          ]}
         />
-        <View style={{ flexDirection: "row", gap: 10 }}>
+        <View style={styles.ntfyButtonsRow}>
           <TouchableOpacity
             onPress={openNtfySubscription}
-            style={{
-              flex: 1,
-              backgroundColor: Colors.brand.navy,
-              paddingVertical: 10,
-              borderRadius: 10,
-              alignItems: "center",
-            }}
+            style={[styles.ntfyPrimaryBtn, { backgroundColor: brand.navy }]}
           >
-            <Text
-              style={{
-                color: Colors.brand.yellow,
-                fontSize: 12,
-                fontWeight: "bold",
-              }}
-            >
+            <Text style={[styles.ntfyBtnText, { color: brand.yellow }]}>
               Kanala Abone Ol
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={handleTestPush}
-            style={{
-              flex: 1,
-              backgroundColor: Colors.brand.yellow,
-              paddingVertical: 10,
-              borderRadius: 10,
-              alignItems: "center",
-            }}
+            style={[styles.ntfyPrimaryBtn, { backgroundColor: brand.yellow }]}
           >
-            <Text
-              style={{
-                color: Colors.brand.navy,
-                fontSize: 12,
-                fontWeight: "bold",
-              }}
-            >
+            <Text style={[styles.ntfyBtnText, { color: brand.navy }]}>
               Test Gol Bildirimi At
             </Text>
           </TouchableOpacity>
         </View>
         {pushStatus ? (
-          <Text
-            style={{
-              marginTop: 8,
-              fontSize: 11,
-              color: theme.text,
-              fontWeight: "600",
-            }}
-          >
+          <Text style={[styles.pushStatusText, { color: theme.text }]}>
             {pushStatus}
           </Text>
         ) : null}
@@ -335,7 +328,10 @@ export default function DahaFazlaScreen() {
           <View
             style={[
               styles.cardGroup,
-              { backgroundColor: theme.cardBackground },
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: theme.border,
+              },
             ]}
           >
             {sec.items.map((item, iIdx) => (
@@ -345,7 +341,7 @@ export default function DahaFazlaScreen() {
                   styles.menuItemRow,
                   iIdx < sec.items.length - 1 && [
                     styles.menuItemBorder,
-                    { borderBottomColor: theme.placeholder },
+                    { borderBottomColor: theme.divider },
                   ],
                 ]}
                 onPress={item.onPress}
@@ -354,7 +350,7 @@ export default function DahaFazlaScreen() {
                 <View
                   style={[
                     styles.menuIconBox,
-                    { backgroundColor: `${item.iconColor}15` },
+                    { backgroundColor: `${item.iconColor}1A` },
                   ]}
                 >
                   <Ionicons
@@ -388,6 +384,7 @@ export default function DahaFazlaScreen() {
           </View>
         </View>
       ))}
+
       <View style={styles.footerContainer}>
         <Text style={[styles.footerText, { color: theme.secondaryText }]}>
           Fenerbahçe Mobil v1.1.0 (Expo SDK 57)
@@ -414,27 +411,19 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   featuredSquadBanner: {
-    backgroundColor: Colors.brand.navy,
     borderRadius: 14,
     padding: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 20,
+    marginBottom: 16,
     borderWidth: 1.5,
-    borderColor: Colors.brand.yellow,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
   },
   bannerLeft: {
     flex: 1,
     paddingRight: 10,
   },
   bannerTag: {
-    color: Colors.brand.yellow,
     fontSize: 11,
     fontWeight: "bold",
     letterSpacing: 0.5,
@@ -455,8 +444,85 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  sectionCard: {
+    padding: 16,
+    marginBottom: 16,
+  },
+  cardHeading: {
+    fontSize: 13,
+    fontWeight: "900",
+    marginBottom: 8,
+  },
+  themeSegment: {
+    flexDirection: "row",
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    padding: 3,
+    gap: 4,
+  },
+  themeSegmentBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: "center",
+  },
+  themeSegmentText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  predStatsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  predStatBox: {
+    alignItems: "center",
+    flex: 1,
+  },
+  predStatValue: {
+    fontSize: 20,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"],
+  },
+  predStatLabel: {
+    fontSize: 11,
+    marginTop: 2,
+    textAlign: "center",
+  },
+  ntfyDesc: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 10,
+  },
+  ntfyInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  ntfyButtonsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  ntfyPrimaryBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  ntfyBtnText: {
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  pushStatusText: {
+    marginTop: 8,
+    fontSize: 11,
+    fontWeight: "600",
+  },
   sectionContainer: {
-    marginBottom: 20,
+    marginBottom: 18,
   },
   sectionTitle: {
     fontSize: 12,
@@ -467,12 +533,8 @@ const styles = StyleSheet.create({
   },
   cardGroup: {
     borderRadius: 14,
+    borderWidth: 1,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   menuItemRow: {
     flexDirection: "row",

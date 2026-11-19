@@ -36,7 +36,14 @@
       "expo-splash-screen",
       "expo-status-bar",
       "expo-web-browser",
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": true,
+          "enableBackgroundRecording": false
+        }
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true
