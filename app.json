@@ -43,7 +43,13 @@
           "enableBackgroundRecording": false
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-notifications",
+        {
+          "color": "#072146"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

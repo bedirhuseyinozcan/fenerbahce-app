@@ -1,0 +1,20 @@
+{
+  "name": "fenerbahce-match-engine",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:migrate:local": "wrangler d1 execute fenerbahce-db --local --file=./schema.sql",
+    "db:migrate:remote": "wrangler d1 execute fenerbahce-db --remote --file=./schema.sql"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261118.1",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.10.0"
+  },
+  "dependencies": {
+    "fenerbahce-app": "file:.."
+  }
+}

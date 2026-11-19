@@ -1,10 +1,15 @@
 import CloudinaryImage from "@/components/CloudinaryImage";
 import { LivePill } from "@/components/ui/LivePulseDot";
 import { useAppTheme } from "@/context/ThemeContext";
+import {
+  isMatchReminderScheduled,
+  toggleMatchReminder,
+} from "@/services/notificationService";
 import { MatchDetailData } from "@/types";
-import { triggerLightHaptic } from "@/utils/haptics";
+import { triggerLightHaptic, triggerSuccessHaptic } from "@/utils/haptics";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
+import React, { useEffect, useState } from "react";
 import {
   Image,
   Share,
@@ -30,6 +35,31 @@ export function MatchHeroHeader({
   onBack,
 }: MatchHeroHeaderProps) {
   const { brand } = useAppTheme();
+  const [reminded, setReminded] = useState(() =>
+    isMatchReminderScheduled(match.id),
+  );
+  const [reminderHint, setReminderHint] = useState("");
+
+  useEffect(() => {
+    setReminded(isMatchReminderScheduled(match.id));
+    setReminderHint("");
+  }, [match.id]);
+
+  useEffect(() => {
+    if (!reminderHint) return;
+    const t = setTimeout(() => setReminderHint(""), 3500);
+    return () => clearTimeout(t);
+  }, [reminderHint]);
+
+  const handleToggleReminder = async () => {
+    triggerLightHaptic();
+    const res = await toggleMatchReminder(match);
+    setReminded(res.scheduled);
+    setReminderHint(res.message);
+    if (res.scheduled) {
+      triggerSuccessHaptic();
+    }
+  };
 
   const handleShare = async () => {
     triggerLightHaptic();
@@ -41,7 +71,9 @@ export function MatchHeroHeader({
     const msg = `${statusLabel} ${match.homeTeam} ${scorePart} ${match.awayTeam}\n🏆 ${match.competition}\n📍 ${match.stadium}\n💛💙 Fenerbahçe 1907`;
     try {
       await Share.share({ message: msg });
-    } catch {}
+    } catch {
+      // ignore share cancel
+    }
   };
 
   return (
@@ -83,19 +115,43 @@ export function MatchHeroHeader({
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.shareButton}
-          onPress={handleShare}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="share-social-outline"
-            size={20}
-            color={brand.yellow}
-          />
-        </TouchableOpacity>
+        <View style={styles.topRightActions}>
+          {!isLive && !isFinished && (
+            <TouchableOpacity
+              style={styles.actionIconBtn}
+              onPress={handleToggleReminder}
+              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={reminded ? "notifications" : "notifications-outline"}
+                size={20}
+                color={brand.yellow}
+              />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.actionIconBtn}
+            onPress={handleShare}
+            hitSlop={{ top: 8, bottom: 8, left: 6, right: 8 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="share-social-outline"
+              size={20}
+              color={brand.yellow}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {reminderHint ? (
+        <View style={styles.reminderToast}>
+          <Text style={[styles.reminderToastText, { color: brand.navy }]}>
+            {reminderHint}
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.scoreboardRow}>
         <View style={styles.teamColumn}>
@@ -241,10 +297,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "bold",
   },
-  shareButton: {
+  topRightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  actionIconBtn: {
     padding: 6,
-    width: 44,
-    alignItems: "flex-end",
+  },
+  reminderToast: {
+    marginHorizontal: 16,
+    marginBottom: 4,
+    backgroundColor: "#FFED00",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  reminderToastText: {
+    fontSize: 11,
+    fontWeight: "800",
+    textAlign: "center",
   },
   scoreboardRow: {
     flexDirection: "row",

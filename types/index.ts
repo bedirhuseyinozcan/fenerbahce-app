@@ -191,3 +191,30 @@ export interface Athlete {
   image?: string;
 }
 
+export interface NotificationPreferences {
+  enabled: boolean;
+  remind60Min: boolean;
+  remind15Min: boolean;
+  branches: {
+    Futbol: boolean;
+    Basketbol: boolean;
+    Voleybol: boolean;
+  };
+  events: {
+    goals: boolean;
+    cards: boolean;
+    kickoffAndFullTime: boolean;
+    lineups: boolean;
+    quarterAndSetEnds: boolean;
+  };
+  workerBaseUrl: string;
+}
+
+export interface ScheduledReminderSpec {
+  matchId: string;
+  offsetMinutes: 60 | 15;
+  fireAtMs: number;
+  title: string;
+  body: string;
+}
+

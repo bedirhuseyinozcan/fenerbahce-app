@@ -67,6 +67,20 @@ export default function DahaFazlaScreen() {
 
   const menuSections = [
     {
+      title: "BİLDİRİM & TAKİP",
+      items: [
+        {
+          id: "bildirimler",
+          title: "Bildirim Merkezi & Maç Hatırlatmaları",
+          subtitle:
+            "1 saat / 15 dk yerel uyarılar, branş matrisi, gizli ntfy & Worker",
+          icon: "notifications",
+          iconColor: "#F59E0B",
+          onPress: () => router.push("/bildirimler" as any),
+        },
+      ],
+    },
+    {
       title: "KULÜP & SPORCULAR",
       items: [
         {
@@ -272,13 +286,26 @@ export default function DahaFazlaScreen() {
           },
         ]}
       >
-        <Text style={[styles.cardHeading, { color: theme.accent }]}>
-          🔔 SIFIR MALİYETLİ CANLI MAÇ BİLDİRİMİ (ntfy)
-        </Text>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 4,
+          }}
+        >
+          <Text style={[styles.cardHeading, { color: theme.accent, marginBottom: 0 }]}>
+            🔔 CANLI BİLDİRİM & HATIRLATMA (ntfy)
+          </Text>
+          <TouchableOpacity onPress={() => router.push("/bildirimler" as any)}>
+            <Text style={{ fontSize: 12, fontWeight: "bold", color: theme.accent }}>
+              Tüm Ayarlar →
+            </Text>
+          </TouchableOpacity>
+        </View>
         <Text style={[styles.ntfyDesc, { color: theme.secondaryText }]}>
-          Android ve iOS'ta mağaza veya ücretli sunucu olmadan gol ve maç sonu
-          bildirimi almak için arkadaş grubunuzla ortak ntfy.sh kanal kodunuzu
-          girin:
+          Yerel maç hatırlatmaları, olay tercihleri ve arkadaş grubu ntfy.sh
+          kanalını Bildirim Merkezi'nden özelleştirebilirsin:
         </Text>
         <TextInput
           value={ntfyTopic}

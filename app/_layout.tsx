@@ -4,10 +4,14 @@ import { AnthemPlayerProvider } from "@/context/AnthemPlayerContext";
 import { AppThemeProvider, useAppTheme } from "@/context/ThemeContext";
 import { MiniAnthemPlayer } from "@/features/anthems/components/MiniAnthemPlayer";
 import { queryClient, setupQueryFocusManager } from "@/lib/queryClient";
+import {
+  initializeNotifications,
+  subscribeToNotificationResponses,
+} from "@/services/notificationService";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import {
   DarkTheme,
   DefaultTheme,
@@ -43,6 +47,7 @@ export default function RootLayout() {
   }, [loaded]);
 
   useEffect(() => {
+    initializeNotifications().catch(() => {});
     return setupQueryFocusManager();
   }, []);
 
@@ -63,6 +68,13 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const { isDark, theme } = useAppTheme();
+  const router = useRouter();
+
+  useEffect(() => {
+    return subscribeToNotificationResponses((route) => {
+      router.push(route as any);
+    });
+  }, [router]);
 
   const navigationTheme = useMemo(() => {
     const base = isDark ? DarkTheme : DefaultTheme;
@@ -90,6 +102,7 @@ function RootLayoutNav() {
           <Stack.Screen name="haberler" options={{ headerShown: true }} />
           <Stack.Screen name="puan-durumu" options={{ headerShown: true }} />
           <Stack.Screen name="derbi-merkezi" options={{ headerShown: true }} />
+          <Stack.Screen name="bildirimler" options={{ headerShown: true }} />
         </Stack>
         <MiniAnthemPlayer />
       </View>

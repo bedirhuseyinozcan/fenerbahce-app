@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fenerbahce-match-engine",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "fenerbahce-db",
+      "database_id": "REPLACE_WITH_YOUR_D1_ID"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MATCH_WATCHER",
+        "class_name": "MatchWatcher"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["MatchWatcher"]
+    }
+  ],
+  "triggers": {
+    "crons": ["*/1 * * * *"]
+  }
+}
