@@ -120,7 +120,12 @@ async function discoverActiveMatches(): Promise<WatchTargetMeta[]> {
   const nowMs = Date.now();
   const windowMs = 60 * 60 * 1000;
 
-  const leagues = ["tur.1", "uefa.champions", "uefa.europa"];
+  const leagues = [
+    "tur.1",
+    "uefa.champions",
+    "uefa.europa",
+    "uefa.europa.conf",
+  ];
   await Promise.all(
     leagues.map(async (slug) => {
       try {

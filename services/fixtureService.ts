@@ -1,13 +1,27 @@
-import { MatchData, MatchStatus } from "@/types";
+import {
+  parseTvfLeagueFixtureHtml,
+  TVF_VOLLEYBALL_LEAGUES,
+} from "@/features/matches/parsers/tvfVolleyball";
+import { MatchData, MatchStat, MatchStatus } from "@/types";
 import { safeFetch } from "@/utils/safeFetch";
 import { getJson, setJson } from "@/utils/storage";
 
 const FIXTURES_CACHE_TTL_MS = 60 * 1000;
-const PERSISTENT_FIXTURES_KEY = "fb_persisted_live_fixtures_v7";
+const PERSISTENT_FIXTURES_KEY = "fb_persisted_live_fixtures_v8";
 let cachedFixtures: MatchData[] | null = null;
 let lastFetchTimestamp = 0;
 let inFlightFixturesPromise: Promise<MatchData[]> | null = null;
 const lastGoodByBranch = new Map<string, MatchData[]>();
+const tvfVolleyballMeta = new Map<
+  string,
+  { setScores: string[]; setStats: MatchStat[] }
+>();
+
+export function getCachedTvfVolleyballMeta(
+  matchId: string,
+): { setScores: string[]; setStats: MatchStat[] } | null {
+  return tvfVolleyballMeta.get(matchId) ?? null;
+}
 
 function loadPersistedFixtures(): MatchData[] | null {
   const parsed = getJson<MatchData[]>(PERSISTENT_FIXTURES_KEY);
@@ -531,79 +545,107 @@ export const fetchFixtures = async (
         console.warn("EuroLeague maç takvimi çekilemedi:", err);
       }
 
-      // 3. VOLEYBOL: TheSportsDB (Kadın Voleybol 136619)
+      // 3. VOLEYBOL: TVF Resmi Fikstür (Kadın & Erkek) + TheSportsDB '123' fallback
+      let tvfMatchCount = 0;
       try {
-        const [vLastRes, vNextRes] = await Promise.all([
-          safeFetch(
-            "https://www.thesportsdb.com/api/v1/json/3/eventslast.php?id=136619",
-          ),
-          safeFetch(
-            "https://www.thesportsdb.com/api/v1/json/3/eventsnext.php?id=136619",
-          ),
-        ]);
+        const tvfResults = await Promise.all(
+          TVF_VOLLEYBALL_LEAGUES.map(async (league) => {
+            const res = await safeFetch(
+              `https://tvf.org.tr/lig/${league.slug}?sekme=fikstur`,
+            );
+            if (!res || !res.ok) return [];
+            const html = await res.text();
+            return parseTvfLeagueFixtureHtml(html, league.competitionLabel);
+          }),
+        );
 
-        const parseTsdbVolley = async (res: Response | null) => {
-          if (!res || !res.ok) return;
-          const data = await res.json();
-          const events = [...(data.results || []), ...(data.events || [])];
-
-          events.forEach((item: any) => {
-            const isFBHome = item.strHomeTeam?.includes("Fenerbah");
-            const isFBAway = item.strAwayTeam?.includes("Fenerbah");
-            const matchId = `tsdb-${item.idEvent}`;
-
-            const rawDateStr = item.dateEvent
-              ? `${item.dateEvent}T${item.strTime || "16:00:00"}Z`
-              : undefined;
-            const dateObj = rawDateStr
-              ? new Date(rawDateStr)
-              : new Date(item.dateEvent);
-
-            const hasScores =
-              item.intHomeScore !== null &&
-              item.intHomeScore !== undefined &&
-              item.intHomeScore !== "" &&
-              item.intAwayScore !== null &&
-              item.intAwayScore !== undefined &&
-              item.intAwayScore !== "";
-
-            const isPastWithoutScore =
-              !hasScores &&
-              rawDateStr &&
-              new Date(rawDateStr).getTime() < Date.now() - 4 * 60 * 60 * 1000;
-
-            if (isPastWithoutScore) {
-              return;
-            }
-
-            matchMap.set(matchId, {
-              id: matchId,
-              branch: "Voleybol",
-              competition: item.strLeague || "Vodafone Sultanlar Ligi",
-              round: item.intRound ? `${item.intRound}. Hafta` : "Lig Maçı",
-              homeTeam: isFBHome ? "Fenerbahçe Medicana" : item.strHomeTeam,
-              homeLogo: isFBHome ? "fener.png" : item.strHomeTeamBadge,
-              homeScore: hasScores ? String(item.intHomeScore) : null,
-              awayTeam: isFBAway ? "Fenerbahçe Medicana" : item.strAwayTeam,
-              awayLogo: isFBAway ? "fener.png" : item.strAwayTeamBadge,
-              awayScore: hasScores ? String(item.intAwayScore) : null,
-              date: formatIstanbulDate(dateObj),
-              time: item.strTimeLocal
-                ? item.strTimeLocal.substring(0, 5)
-                : formatIstanbulTime(dateObj),
-              stadium: item.strVenue || "Burhan Felek Vestel Voleybol Salonu",
-              rawDate: rawDateStr,
-              status: hasScores ? "finished" : "upcoming",
+        for (const entries of tvfResults) {
+          for (const entry of entries) {
+            matchMap.set(entry.match.id, entry.match);
+            tvfVolleyballMeta.set(entry.match.id, {
+              setScores: entry.setScores,
+              setStats: entry.setStats,
             });
-          });
-        };
-
-        await Promise.all([
-          parseTsdbVolley(vLastRes),
-          parseTsdbVolley(vNextRes),
-        ]);
+            tvfMatchCount += 1;
+          }
+        }
       } catch {
-        // Voleybol API ulaşılamadığında sadece önceki gerçek voleybol verisi varsa korunur
+        // TVF ulaşılamazsa aşağıdaki yedek kaynağa düşer
+      }
+
+      if (tvfMatchCount === 0) {
+        try {
+          const [vLastRes, vNextRes] = await Promise.all([
+            safeFetch(
+              "https://www.thesportsdb.com/api/v1/json/123/eventslast.php?id=136619",
+            ),
+            safeFetch(
+              "https://www.thesportsdb.com/api/v1/json/123/eventsnext.php?id=136619",
+            ),
+          ]);
+
+          const parseTsdbVolley = async (res: Response | null) => {
+            if (!res || !res.ok) return;
+            const data = await res.json();
+            const events = [...(data.results || []), ...(data.events || [])];
+
+            events.forEach((item: any) => {
+              const isFBHome = item.strHomeTeam?.includes("Fenerbah");
+              const isFBAway = item.strAwayTeam?.includes("Fenerbah");
+              const matchId = `tsdb-${item.idEvent}`;
+
+              const rawDateStr = item.dateEvent
+                ? `${item.dateEvent}T${item.strTime || "16:00:00"}Z`
+                : undefined;
+              const dateObj = rawDateStr
+                ? new Date(rawDateStr)
+                : new Date(item.dateEvent);
+
+              const hasScores =
+                item.intHomeScore !== null &&
+                item.intHomeScore !== undefined &&
+                item.intHomeScore !== "" &&
+                item.intAwayScore !== null &&
+                item.intAwayScore !== undefined &&
+                item.intAwayScore !== "";
+
+              const isPastWithoutScore =
+                !hasScores &&
+                rawDateStr &&
+                new Date(rawDateStr).getTime() <
+                  Date.now() - 4 * 60 * 60 * 1000;
+
+              if (isPastWithoutScore) {
+                return;
+              }
+
+              matchMap.set(matchId, {
+                id: matchId,
+                branch: "Voleybol",
+                competition: item.strLeague || "SMS Grup Efeler Ligi",
+                round: item.intRound ? `${item.intRound}. Hafta` : "Lig Maçı",
+                homeTeam: isFBHome ? "Fenerbahçe Medicana" : item.strHomeTeam,
+                homeLogo: isFBHome ? "fener.png" : item.strHomeTeamBadge,
+                homeScore: hasScores ? String(item.intHomeScore) : null,
+                awayTeam: isFBAway ? "Fenerbahçe Medicana" : item.strAwayTeam,
+                awayLogo: isFBAway ? "fener.png" : item.strAwayTeamBadge,
+                awayScore: hasScores ? String(item.intAwayScore) : null,
+                date: formatIstanbulDate(dateObj),
+                time: formatIstanbulTime(dateObj),
+                stadium: item.strVenue || "Burhan Felek Vestel Voleybol Salonu",
+                rawDate: rawDateStr,
+                status: hasScores ? "finished" : "upcoming",
+              });
+            });
+          };
+
+          await Promise.all([
+            parseTsdbVolley(vLastRes),
+            parseTsdbVolley(vNextRes),
+          ]);
+        } catch {
+          // Voleybol API ulaşılamadığında sadece önceki gerçek voleybol verisi varsa korunur
+        }
       }
 
       const allMatches = Array.from(matchMap.values());

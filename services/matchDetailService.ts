@@ -15,6 +15,7 @@ import {
   formatIstanbulTime,
   getCachedFixturesSync,
   getCachedMatchByIdSync,
+  getCachedTvfVolleyballMeta,
   getEuroLeagueSeasonCode,
   resolveEuroLeagueUtcDate,
   resolveMatchStatus,
@@ -114,7 +115,7 @@ export const getMatchDetail = async (
         const knownSlug = cachedMatch?.leagueSlug;
         const espnLeagues = knownSlug
           ? [knownSlug]
-          : ["tur.1", "uefa.champions", "uefa.europa"];
+          : ["tur.1", "uefa.champions", "uefa.europa", "uefa.europa.conf"];
 
         const responses = await Promise.all(
           espnLeagues.map((slug) =>
@@ -383,17 +384,18 @@ export const getMatchDetail = async (
             ) {
               competition = "UEFA Şampiyonlar Ligi";
             } else if (
+              leagueName.includes("conference") ||
+              leagueName.includes("uefa.europa.conf") ||
+              leagueName.includes("uefa.conf") ||
+              seasonName.includes("conference league")
+            ) {
+              competition = "UEFA Konferans Ligi";
+            } else if (
               leagueName.includes("europa") ||
               leagueName.includes("uefa.europa") ||
               seasonName.includes("europa league")
             ) {
               competition = "UEFA Avrupa Ligi";
-            } else if (
-              leagueName.includes("conference") ||
-              leagueName.includes("uefa.conf") ||
-              seasonName.includes("conference league")
-            ) {
-              competition = "UEFA Konferans Ligi";
             } else if (
               leagueName.includes("super lig") ||
               leagueName.includes("tur.1") ||
@@ -645,6 +647,17 @@ export const getMatchDetail = async (
       }
     }
 
+    if (matchId.startsWith("tvf-") && !getCachedTvfVolleyballMeta(matchId)) {
+      try {
+        const refreshed = await fetchFixtures(true);
+        fixturesList = refreshed;
+        cachedMatch =
+          refreshed.find((f) => f.id === matchId) || cachedMatch;
+      } catch {
+        // ignore network error; cachedMatch remains usable
+      }
+    }
+
     const emptyFallbackMatch: MatchData = {
       id: matchId,
       branch: "Futbol",
@@ -668,6 +681,9 @@ export const getMatchDetail = async (
       emptyFallbackMatch;
     const isFbHome = match.homeTeam.toLowerCase().includes("fenerbah");
     const resolvedStatus = resolveMatchStatus(match);
+    const tvfMeta = match.id.startsWith("tvf-")
+      ? getCachedTvfVolleyballMeta(match.id)
+      : null;
 
     const stadium =
       match.stadium ||
@@ -675,7 +691,7 @@ export const getMatchDetail = async (
         ? "Ülker Stadyumu Şükrü Saracoğlu Spor Kompleksi"
         : `${match.homeTeam} Stadyumu`);
 
-    return {
+    const fallbackDetail: MatchDetailData = {
       id: match.id,
       branch: match.branch,
       competition: match.competition,
@@ -693,14 +709,25 @@ export const getMatchDetail = async (
       status: resolvedStatus,
       liveClock: match.liveClock,
       referee: undefined,
-      quarterScores: undefined,
+      quarterScores:
+        tvfMeta && tvfMeta.setScores.length > 0
+          ? tvfMeta.setScores
+          : undefined,
       events: [],
       homeLineup: getUnconfirmedLineup(),
       awayLineup: getUnconfirmedLineup(),
-      stats: [],
+      stats: tvfMeta ? tvfMeta.setStats : [],
       commentary: [],
-      momentum: null,
+      momentum:
+        tvfMeta && tvfMeta.setStats.length > 0
+          ? computeMatchMomentum(tvfMeta.setStats, [])
+          : null,
     };
+
+    if (tvfMeta) {
+      matchDetailCache.set(matchId, { data: fallbackDetail, ts: Date.now() });
+    }
+    return fallbackDetail;
   } catch {
     const fbMatch: MatchData = cachedMatch || {
       id: matchId,

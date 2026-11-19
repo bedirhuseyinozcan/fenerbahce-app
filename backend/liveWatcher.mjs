@@ -209,7 +209,12 @@ async function fetchFootballLiveDetails(slug, matchId) {
 }
 
 async function checkFootballMatches() {
-  const leagues = ["tur.1", "uefa.champions", "uefa.europa"];
+  const leagues = [
+    "tur.1",
+    "uefa.champions",
+    "uefa.europa",
+    "uefa.europa.conf",
+  ];
   let hasLive = false;
   let hasTodayMatch = false;
   const todayStr = getIstanbulDateKey();
